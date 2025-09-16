@@ -24,8 +24,22 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  // Get initial tab from URL path
+  // Get initial tab from URL path or data attribute
   const getInitialTab = (): TabType => {
+    // First check data attribute from XenForo
+    const rootElement = document.getElementById('windows-builds-root');
+    if (rootElement) {
+      const section = rootElement.dataset.section;
+      if (section) {
+        // Map windowsserver to windowsServer for consistency
+        if (section === 'windowsserver') return 'windowsServer';
+        if (['windows11', 'windows10', 'edge', 'office365'].includes(section)) {
+          return section as TabType;
+        }
+      }
+    }
+
+    // Fallback to URL path
     const path = window.location.pathname;
     if (path.includes('/windows11')) return 'windows11';
     if (path.includes('/windows10')) return 'windows10';
@@ -63,7 +77,6 @@ function AppContent() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [modalOpen, setModalOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [lastManualRefresh, setLastManualRefresh] = useState<number>(0);
 
   // Update document metadata based on active tab
   const updatePageMetadata = useCallback((tab: TabType) => {
@@ -239,22 +252,7 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [activeTab, filters]);
 
-  const loadBuilds = async (forceRefresh = false) => {
-    // Check if manual refresh is rate limited (60 minutes)
-    if (forceRefresh && !loading) {
-      const now = Date.now();
-      const timeSinceLastRefresh = now - lastManualRefresh;
-      const sixtyMinutes = 60 * 60 * 1000;
-
-      if (timeSinceLastRefresh < sixtyMinutes) {
-        const remainingMinutes = Math.ceil((sixtyMinutes - timeSinceLastRefresh) / (60 * 1000));
-        setError(`Please wait ${remainingMinutes} minute${remainingMinutes > 1 ? 's' : ''} before refreshing again`);
-        return;
-      }
-
-      setLastManualRefresh(now);
-    }
-
+  const loadBuilds = async () => {
     setLoading(true);
     setError(null);
 
@@ -436,20 +434,6 @@ function AppContent() {
                         d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span>Updated {lastUpdated.toLocaleTimeString()}</span>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => loadBuilds(true)}
-                      disabled={loading}
-                      className="ml-2"
-                      title={lastManualRefresh > 0 ? `Last manual refresh: ${new Date(lastManualRefresh).toLocaleTimeString()}` : 'Refresh data'}
-                    >
-                      <svg className={cn("w-3 h-3", loading && "animate-spin")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Refresh
-                    </Button>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -592,7 +576,7 @@ function AppContent() {
                   <h4 className="font-semibold text-red-900 dark:text-red-200">Error loading builds</h4>
                   <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => loadBuilds(true)} className="ml-auto">
+                <Button variant="outline" size="sm" onClick={() => loadBuilds()} className="ml-auto">
                   Retry
                 </Button>
               </div>
@@ -709,19 +693,41 @@ function AppContent() {
 
       {/* Attribution Footer */}
       <footer className="mt-12 pb-6 text-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Build information courtesy of{' '}
-          <a
-            href="https://uupdump.net"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
-          >
-            UUPDump.net
-          </a>
-          {' and '}
-          <span className="font-medium">Microsoft Corporation</span>
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Build information courtesy of{' '}
+            <a
+              href="https://uupdump.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+            >
+              UUPDump.net
+            </a>
+            {' and '}
+            <span className="font-medium">Microsoft Corporation</span>
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Download official Windows directly from{' '}
+            <a
+              href="https://www.microsoft.com/software-download/windows11"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+            >
+              Microsoft Windows 11
+            </a>
+            {' | '}
+            <a
+              href="https://www.microsoft.com/software-download/windows10"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+            >
+              Windows 10
+            </a>
+          </p>
+        </div>
       </footer>
     </div>
   );
