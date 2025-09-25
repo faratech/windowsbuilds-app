@@ -6,6 +6,7 @@ import { Header } from './components/layout/Header';
 import { BuildCard } from './components/BuildCard';
 import { BuildListItem } from './components/BuildListItem';
 import { BuildDetailsModal } from './components/BuildDetailsModal';
+import { StaticDownloads } from './components/StaticDownloads';
 import { Button } from './components/ui/Button';
 import { Card } from './components/ui/Card';
 import { SkeletonBuildItem } from './components/ui/Skeleton';
@@ -411,6 +412,9 @@ function AppContent() {
             ))}
           </div>
         </motion.div>
+
+        {/* Static Downloads Section for Windows 11 */}
+        {activeTab === 'windows11' && <StaticDownloads />}
 
         {/* Help Link for Windows Builds */}
         {(activeTab === 'windows11' || activeTab === 'windows10' || activeTab === 'windowsServer') && (
