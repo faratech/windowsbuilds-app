@@ -1,14 +1,12 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-primary: var(--color-blue-500);
+  --color-secondary: var(--color-violet-500);
+  --color-accent: var(--color-cyan-500);
+}
 
 @layer base {
-  :root {
-    --color-primary: theme('colors.blue.500');
-    --color-secondary: theme('colors.violet.500');
-    --color-accent: theme('colors.cyan.500');
-  }
-
   .dark {
     color-scheme: dark;
   }
@@ -20,28 +18,25 @@
   }
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+@utility text-balance {
+  text-wrap: balance;
+}
 
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
+@utility line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
-  .scrollbar-thin {
-    scrollbar-width: thin;
-  }
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+}
 
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-hide::-webkit-scrollbar {
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
     display: none;
   }
 }
@@ -197,15 +192,24 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-800;
+  background-color: var(--color-gray-100);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: var(--color-gray-800);
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+  background-color: var(--color-gray-400);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: var(--color-gray-600);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-500 dark:bg-gray-500;
+  background-color: var(--color-gray-500);
 }
 
 /* Focus styles */
@@ -215,7 +219,9 @@
 }
 
 .focus-visible:focus-visible {
-  @apply ring-2 ring-blue-500 ring-offset-2;
+  --tw-ring-offset-width: 2px;
+  --tw-ring-color: var(--color-blue-500);
+  box-shadow: 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color, #fff), 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
 }
 
 /* Loading skeleton */
