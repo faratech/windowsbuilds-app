@@ -21,8 +21,8 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
   const handleQuickFilter = (filter: BuildType | 'latest' | 'reset') => {
     if (filter === 'reset') {
       onFiltersChange({
-        selectedMonth: 'Last 30 Days',
-        selectedYear: '2025',
+        selectedMonth: 'Last 60 Days',
+        selectedYear: new Date().getFullYear().toString(),
         selectedArch: 'amd64',
         excludeInsider: false,
         buildFilter: '',
@@ -59,8 +59,8 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
         <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <MonthYearFilter
-              selectedMonth={filters.selectedMonth || 'Last 30 Days'}
-              selectedYear={filters.selectedYear || '2025'}
+              selectedMonth={filters.selectedMonth || 'Last 60 Days'}
+              selectedYear={filters.selectedYear || new Date().getFullYear().toString()}
               onMonthChange={(month) => onFiltersChange({ selectedMonth: month })}
               onYearChange={(year) => onFiltersChange({ selectedYear: year })}
             />
@@ -125,8 +125,8 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             <button
               onClick={() => {
                 onFiltersChange({
-                  selectedMonth: 'Last 30 Days',
-                  selectedYear: '2025',
+                  selectedMonth: 'Last 60 Days',
+                  selectedYear: new Date().getFullYear().toString(),
                   selectedArch: 'amd64',
                   excludeInsider: false,
                   buildFilter: '',

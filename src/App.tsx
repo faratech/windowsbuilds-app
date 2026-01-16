@@ -59,7 +59,7 @@ function AppContent() {
 
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab());
   const [filters, setFilters] = useState<FilterOptions>({
-    selectedMonth: 'Last 30 Days',
+    selectedMonth: 'Last 60 Days',
     selectedYear: new Date().getFullYear().toString(),
     selectedArch: 'amd64',
     excludeInsider: false,
@@ -324,26 +324,18 @@ function AppContent() {
     return true;
   }).sort((a, b) => {
     // Sort by build number in descending order (highest first)
-    // Extract build numbers and compare them numerically
     const getBuildNumber = (build: any): number => {
       const buildStr = build.build_number || build.build || build.Version || build.version || '';
-      // Extract just the numeric part from build strings like "26100.2605" or "26100"
       const match = buildStr.toString().match(/^(\d+)(?:\.(\d+))?/);
       if (match) {
         const major = parseInt(match[1]) || 0;
         const minor = parseInt(match[2]) || 0;
-        // Create a comparable number: major * 100000 + minor
-        // This allows proper comparison of builds like 26100.2605 vs 26100.2604
         return major * 100000 + minor;
       }
       return 0;
     };
 
-    const buildNumA = getBuildNumber(a);
-    const buildNumB = getBuildNumber(b);
-
-    // Sort in descending order (highest build number first)
-    return buildNumB - buildNumA;
+    return getBuildNumber(b) - getBuildNumber(a);
   });
 
   const tabs = [
@@ -357,7 +349,7 @@ function AppContent() {
   const architectures = ['amd64', 'arm64', 'x86'];
   const platforms = ['Windows', 'MacOS', 'Linux'];
   const downloadFilters = ['All', 'Download Available', 'No Downloads'];
-  const months = ['Last 30 Days', 'January', 'February', 'March', 'April', 'May', 'June',
+  const months = ['Last 60 Days', 'Last 30 Days', 'January', 'February', 'March', 'April', 'May', 'June',
                   'July', 'August', 'September', 'October', 'November', 'December'];
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());

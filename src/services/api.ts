@@ -40,9 +40,13 @@ class ApiService {
       if (filters?.buildFilter) params.append('search', filters.buildFilter);
       if (filters?.excludeInsider) params.append('exclude_insider', String(filters.excludeInsider));
 
-      // Handle rolling date filter - use 'use_rolling' flag when "Last 30 Days" is selected
-      if (filters?.selectedMonth === 'Last 30 Days') {
+      // Handle rolling date filter - use 'use_rolling' flag when "Last X Days" is selected
+      if (filters?.selectedMonth === 'Last 60 Days') {
         params.append('use_rolling', 'true');
+        params.append('rolling_days', '60');
+      } else if (filters?.selectedMonth === 'Last 30 Days') {
+        params.append('use_rolling', 'true');
+        params.append('rolling_days', '30');
       } else {
         if (filters?.selectedMonth && filters.selectedMonth !== 'All') {
           params.append('month', filters.selectedMonth);

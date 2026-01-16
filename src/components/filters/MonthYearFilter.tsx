@@ -9,6 +9,7 @@ interface MonthYearFilterProps {
 
 const months = [
   'All',
+  'Last 60 Days',
   'Last 30 Days',
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
