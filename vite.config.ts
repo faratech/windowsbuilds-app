@@ -11,7 +11,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        rewrite: (path: string) => path.replace(/^\/api/, '')
       }
     }
   },
@@ -21,8 +21,10 @@ export default defineConfig({
     minify: 'terser',
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom']
+        manualChunks(id: string) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {
+            return 'vendor'
+          }
         }
       }
     }
