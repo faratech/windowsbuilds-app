@@ -3,16 +3,23 @@ import { motion } from 'framer-motion';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/Card';
 import { Badge, BuildTypeBadge, ChannelBadge } from './ui/Badge';
 import { Button } from './ui/Button';
+import type { EdgeBuild, OfficeBuild, WindowsBuild } from '../types';
+
+type BuildCardRecord = WindowsBuild | EdgeBuild | OfficeBuild;
 
 interface BuildCardProps {
-  build: any;
+  build: BuildCardRecord;
   type: 'windows' | 'edge' | 'office';
   onClick?: () => void;
   index?: number;
 }
 
+const isWindowsBuild = (build: BuildCardRecord): build is WindowsBuild => 'uuid' in build;
+const isEdgeBuild = (build: BuildCardRecord): build is EdgeBuild => 'Version' in build;
+const isOfficeBuild = (build: BuildCardRecord): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
+
 export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, index = 0 }) => {
-  const formatDate = (date: string | number) => {
+  const formatDate = (date?: string | number) => {
     if (!date) return 'Unknown';
     const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);
     return d.toLocaleDateString('en-US', {
@@ -51,6 +58,39 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
     }
   };
 
+  const getTitle = () => {
+    if (isEdgeBuild(build)) return `Microsoft Edge ${build.Product || ''}`;
+    if (isOfficeBuild(build)) return build.title || build.name || 'Office 365';
+    return build.title || 'Unknown Build';
+  };
+
+  const getVersion = () => {
+    if (isWindowsBuild(build)) return build.build_number || build.build || '';
+    if (isEdgeBuild(build)) return build.Version || '';
+    return build.build || build.version || '';
+  };
+
+  const getSummary = () => {
+    if (isWindowsBuild(build)) return build.summary;
+    if (isOfficeBuild(build)) return build.notes;
+    return undefined;
+  };
+
+  const getDate = () => {
+    if (isWindowsBuild(build)) return build.created || build.created_timestamp;
+    if (isEdgeBuild(build)) return build.PublishedTime;
+    return build.releaseDate;
+  };
+
+  const getDownloadUrl = () => {
+    if (isWindowsBuild(build)) return `https://uupdump.net/selectlang.php?id=${build.uuid}`;
+    if (isEdgeBuild(build) && build.Artifacts?.length) return build.Artifacts[0].Location;
+    if (isOfficeBuild(build)) return 'https://www.microsoft.com/en-us/download/office.aspx';
+    return null;
+  };
+
+  const summary = getSummary();
+
   const cardVariants = {
     hidden: { opacity: 0, y: 50 },
     visible: {
@@ -82,22 +122,10 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="text-lg group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                {type === 'edge'
-                  ? `Microsoft Edge ${build.Product || ''}`
-                  : type === 'office'
-                  ? (build.title || build.name || 'Office 365')
-                  : (build.title || build.Product || 'Unknown Build')}
+                {getTitle()}
               </CardTitle>
               <CardDescription className="mt-1">
-                {type === 'windows' && build.build_number && (
-                  <span className="font-mono text-sm">{build.build_number}</span>
-                )}
-                {type === 'edge' && build.Version && (
-                  <span className="font-mono text-sm">{build.Version}</span>
-                )}
-                {type === 'office' && build.version && (
-                  <span className="font-mono text-sm">{build.version}</span>
-                )}
+                {getVersion() && <span className="font-mono text-sm">{getVersion()}</span>}
               </CardDescription>
             </div>
             {getIcon()}
@@ -106,15 +134,15 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
 
         <CardContent>
           <div className="flex flex-wrap gap-2 mb-3">
-            {type === 'windows' && build.build_type && (
+            {isWindowsBuild(build) && build.build_type && (
               <BuildTypeBadge type={build.build_type} />
             )}
-            {type === 'windows' && build.arch && (
+            {isWindowsBuild(build) && build.arch && (
               <Badge variant="secondary" size="sm">
                 {build.arch}
               </Badge>
             )}
-            {type === 'edge' && (
+            {isEdgeBuild(build) && (
               <>
                 {build.Product && <ChannelBadge channel={build.Product} />}
                 {build.Platform && (
@@ -141,16 +169,21 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
                 )}
               </>
             )}
-            {type === 'office' && build.channel && (
+            {isOfficeBuild(build) && build.channel && (
               <Badge variant="primary" size="sm">
                 {build.channel}
               </Badge>
             )}
+            {isOfficeBuild(build) && build.latest && (
+              <Badge variant="success" size="sm">
+                Latest
+              </Badge>
+            )}
           </div>
 
-          {build.summary && (
+          {summary && (
             <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-              {build.summary}
+              {summary}
             </p>
           )}
 
@@ -161,10 +194,10 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
                   d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span>
-                {formatDate(build.created || build.created_timestamp || build.PublishedTime || build.releaseDate)}
+                {formatDate(getDate())}
               </span>
             </div>
-            {build.uuid && (
+            {isWindowsBuild(build) && build.uuid && (
               <div className="flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -179,23 +212,13 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
         <CardFooter>
           <div className="flex items-center justify-between w-full">
             {/* Conditionally show download button */}
-            {((type === 'windows' && build.uuid) ||
-              (type === 'edge' && build.Artifacts && build.Artifacts.length > 0) ||
-              type === 'office') ? (
+            {getDownloadUrl() ? (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Handle download based on type
-                  let url = null;
-                  if (type === 'windows' && build.uuid) {
-                    url = `https://uupdump.net/selectlang.php?id=${build.uuid}`;
-                  } else if (type === 'edge' && build.Artifacts && build.Artifacts.length > 0) {
-                    url = build.Artifacts[0].Location;
-                  } else if (type === 'office') {
-                    url = 'https://www.microsoft.com/en-us/download/office.aspx';
-                  }
+                  const url = getDownloadUrl();
                   if (url) {
                     window.open(url, '_blank', 'noopener,noreferrer');
                   }

@@ -64,7 +64,7 @@ export const Button: React.FC<ButtonProps> = ({
         setRipples((prev) => prev.filter((r) => r.id !== id));
       }, 600);
     }
-    onClick?.(e as any);
+    onClick?.(e);
   };
 
   return (
@@ -142,9 +142,10 @@ export const ButtonGroup: React.FC<{ children: React.ReactNode; className?: stri
   <div className={cn('inline-flex rounded-lg shadow-sm', className)} role="group">
     {React.Children.map(children, (child, index) => {
       if (React.isValidElement(child)) {
-        return React.cloneElement(child as React.ReactElement<any>, {
+        const childElement = child as React.ReactElement<{ className?: string }>;
+        return React.cloneElement(childElement, {
           className: cn(
-            (child as React.ReactElement<any>).props.className,
+            childElement.props.className,
             index === 0 && 'rounded-r-none',
             index === React.Children.count(children) - 1 && 'rounded-l-none',
             index !== 0 && index !== React.Children.count(children) - 1 && 'rounded-none',

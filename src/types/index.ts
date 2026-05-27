@@ -23,8 +23,10 @@ export interface EdgeBuild {
   Platform: string;
   Architecture: string;
   PublishedTime: string;
+  ReleaseId?: number;
   ReleasedVersion?: string;
   Artifacts?: EdgeArtifact[];
+  CVEs?: string[];
 }
 
 export interface EdgeArtifact {
@@ -37,10 +39,13 @@ export interface EdgeArtifact {
 
 export interface OfficeBuild {
   id: string;
-  name: string;
+  title?: string;
+  name?: string;
+  build?: string;
   version: string;
   channel: string;
   releaseDate: string;
+  latest?: boolean;
   notes?: string;
 }
 

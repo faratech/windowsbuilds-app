@@ -4,14 +4,21 @@ import { Button } from './ui/Button';
 import { Badge, BuildTypeBadge, ChannelBadge } from './ui/Badge';
 import { Card } from './ui/Card';
 import { Skeleton } from './ui/Skeleton';
-import axios from 'axios';
+import { apiService } from '../services/api';
+import type { EdgeArtifact, EdgeBuild, OfficeBuild, WindowsBuild } from '../types';
+
+type BuildDetails = WindowsBuild | EdgeBuild | OfficeBuild;
 
 interface BuildDetailsModalProps {
-  build: any;
+  build: BuildDetails;
   type: 'windows' | 'edge' | 'office';
   isOpen: boolean;
   onClose: () => void;
 }
+
+const isWindowsBuild = (build: BuildDetails): build is WindowsBuild => 'uuid' in build;
+const isEdgeBuild = (build: BuildDetails): build is EdgeBuild => 'Version' in build;
+const isOfficeBuild = (build: BuildDetails): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
 
 export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
   build,
@@ -23,43 +30,95 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
-    if (isOpen && type === 'windows' && build.uuid && !build.summary) {
-      fetchSummary();
-    } else if (build.summary) {
+    let cancelled = false;
+
+    if (!isOpen) {
+      return;
+    }
+
+    if (isWindowsBuild(build) && build.summary) {
       setSummary(build.summary);
+      return;
     }
-  }, [isOpen, build]);
 
-  const fetchSummary = async () => {
+    let uuid = '';
+    let title = '';
+    const buildType = type;
+
+    if (isWindowsBuild(build)) {
+      uuid = build.uuid;
+      title = build.title || 'Windows Build';
+    } else if (isEdgeBuild(build)) {
+      uuid = build.ReleaseId ? String(build.ReleaseId) : `${build.Product}_${build.Platform}_${build.Architecture}_${build.Version}`;
+      title = `Microsoft Edge ${build.Product || ''} ${build.Version || ''}`.trim();
+    } else if (isOfficeBuild(build)) {
+      uuid = `${build.channel.replace(/\s+/g, '_')}_${build.build || ''}`;
+      title = build.title || build.name || 'Office 365 Build';
+    }
+
+    if (!uuid) {
+      setSummary('');
+      return;
+    }
+
+    setSummary('');
     setLoadingSummary(true);
-    try {
-      const response = await axios.post('/api/builds/summary', null, {
-        params: {
-          uuid: build.uuid,
-          title: build.title,
-          build_type: 'windows',
-        },
+    apiService.fetchBuildSummary(uuid, title, buildType)
+      .then((fetchedSummary) => {
+        if (!cancelled) setSummary(fetchedSummary);
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to fetch summary:', error);
+        if (!cancelled) setSummary('Summary unavailable');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSummary(false);
       });
-      setSummary(response.data.summary);
-    } catch (error) {
-      console.error('Failed to fetch summary:', error);
-      setSummary('Summary unavailable');
-    } finally {
-      setLoadingSummary(false);
-    }
-  };
 
-  const getTitle = () => {
-    if (type === 'edge') {
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, build, type]);
+
+  const getBuildTitle = () => {
+    if (isEdgeBuild(build)) {
       return `Microsoft Edge ${build.Product || ''}`;
     }
-    if (type === 'office') {
+    if (isOfficeBuild(build)) {
       return build.title || build.name || 'Office 365 Build';
     }
-    return build.title || build.Product || 'Build Details';
+    return build.title || 'Build Details';
   };
 
-  const formatDate = (date: string | number) => {
+  const getBuildNumber = () => {
+    if (isWindowsBuild(build)) {
+      return build.build_number || build.build || 'N/A';
+    }
+    if (isEdgeBuild(build)) {
+      return build.Version || 'N/A';
+    }
+    return build.build || build.version || 'N/A';
+  };
+
+  const getPlatformOrArchitecture = () => {
+    if (isWindowsBuild(build)) return build.arch;
+    if (isEdgeBuild(build)) return `${build.Platform} ${build.Architecture}`.trim();
+    return null;
+  };
+
+  const getBuildDate = () => {
+    if (isWindowsBuild(build)) return build.created || build.created_timestamp;
+    if (isEdgeBuild(build)) return build.PublishedTime;
+    return build.releaseDate;
+  };
+
+  const getBuildId = () => {
+    if (isWindowsBuild(build)) return build.uuid;
+    if (isEdgeBuild(build)) return build.ReleaseId;
+    return null;
+  };
+
+  const formatDate = (date?: string | number) => {
     if (!date) return 'Unknown';
     const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);
     return d.toLocaleDateString('en-US', {
@@ -73,13 +132,13 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
   };
 
   const getDownloadUrl = () => {
-    if (type === 'windows' && build.uuid) {
+    if (isWindowsBuild(build)) {
       return `https://uupdump.net/selectlang.php?id=${build.uuid}`;
     }
-    if (type === 'edge' && build.Artifacts && build.Artifacts.length > 0) {
+    if (isEdgeBuild(build) && build.Artifacts && build.Artifacts.length > 0) {
       return build.Artifacts[0].Location;
     }
-    if (type === 'office') {
+    if (isOfficeBuild(build)) {
       return 'https://www.microsoft.com/en-us/download/office.aspx';
     }
     return null;
@@ -96,7 +155,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={getTitle()}
+      title={getBuildTitle()}
       size="lg"
     >
       <div className="space-y-6">
@@ -113,19 +172,18 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
                   {type === 'windows' ? 'Build Number' : 'Version'}
                 </p>
                 <p className="font-mono text-lg font-semibold text-gray-900 dark:text-white">
-                  {build.build_number || build.Version || build.version || 'N/A'}
+                  {getBuildNumber()}
                 </p>
               </div>
 
               {/* Architecture/Platform */}
-              {(build.arch || build.Architecture || build.Platform) && (
+              {getPlatformOrArchitecture() && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {build.Platform ? 'Platform' : 'Architecture'}
+                    {isEdgeBuild(build) ? 'Platform' : 'Architecture'}
                   </p>
                   <p className="font-semibold text-gray-900 dark:text-white">
-                    {build.Platform && `${build.Platform} `}
-                    {build.arch || build.Architecture || ''}
+                    {getPlatformOrArchitecture()}
                   </p>
                 </div>
               )}
@@ -134,23 +192,18 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Last Seen</p>
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  {formatDate(
-                    build.created ||
-                    build.created_timestamp ||
-                    build.PublishedTime ||
-                    build.releaseDate
-                  )}
+                  {formatDate(getBuildDate())}
                 </p>
               </div>
 
               {/* UUID/Release ID */}
-              {(build.uuid || build.ReleaseId) && (
+              {getBuildId() && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {build.uuid ? 'UUID' : 'Release ID'}
+                    {isWindowsBuild(build) ? 'UUID' : 'Release ID'}
                   </p>
                   <p className="font-mono text-sm text-gray-900 dark:text-white truncate">
-                    {build.uuid || build.ReleaseId}
+                    {getBuildId()}
                   </p>
                 </div>
               )}
@@ -158,16 +211,16 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
 
             {/* Badges */}
             <div className="flex flex-wrap gap-2 mt-4">
-              {type === 'windows' && build.build_type && (
+              {isWindowsBuild(build) && build.build_type && (
                 <BuildTypeBadge type={build.build_type} />
               )}
-              {type === 'edge' && build.Product && (
+              {isEdgeBuild(build) && build.Product && (
                 <ChannelBadge channel={build.Product} />
               )}
-              {type === 'office' && build.channel && (
+              {isOfficeBuild(build) && build.channel && (
                 <Badge variant="primary">{build.channel}</Badge>
               )}
-              {build.latest && (
+              {isOfficeBuild(build) && build.latest && (
                 <Badge variant="success">Latest</Badge>
               )}
             </div>
@@ -175,7 +228,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
         </div>
 
         {/* Summary */}
-        {(type === 'windows' || summary) && (
+        {(summary || loadingSummary) && (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Summary
@@ -188,7 +241,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
                 </div>
               ) : (
                 <p className="text-gray-700 dark:text-gray-300">
-                  {summary || build.summary || 'No summary available for this build.'}
+                  {summary || (isWindowsBuild(build) ? build.summary : '') || 'No summary available for this build.'}
                 </p>
               )}
             </Card>
@@ -196,7 +249,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
         )}
 
         {/* Edge Artifacts or No Downloads Available Message */}
-        {type === 'edge' && (
+        {isEdgeBuild(build) && (
           build.Artifacts && build.Artifacts.length > 0 ? (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
@@ -204,7 +257,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
             </h3>
             <Card variant="outline" className="p-4">
               <div className="space-y-3">
-                {build.Artifacts.map((artifact: any, index: number) => (
+                {build.Artifacts.map((artifact: EdgeArtifact, index: number) => (
                   <div
                     key={index}
                     className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-900"
@@ -279,7 +332,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
         )}
 
         {/* CVEs for Edge */}
-        {type === 'edge' && build.CVEs && build.CVEs.length > 0 && (
+        {isEdgeBuild(build) && build.CVEs && build.CVEs.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Security Updates (CVEs)

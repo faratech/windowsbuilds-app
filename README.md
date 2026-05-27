@@ -52,7 +52,7 @@ npm run preview
 
 ## API Configuration
 
-The application expects an API backend at `http://localhost:8001`. Configure the proxy in `vite.config.ts` if your API runs on a different port.
+The development proxy sends `/api/builds/*` requests to `http://localhost:8000`. Configure `VITE_API_BASE` if your backend runs somewhere else.
 
 ## Environment Variables
 

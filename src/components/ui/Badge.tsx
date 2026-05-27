@@ -2,9 +2,12 @@ import React from 'react';
 import { motion, type HTMLMotionProps } from 'framer-motion';
 import { cn } from '../../utils/cn';
 
+type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
+type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
+
 interface BadgeProps extends HTMLMotionProps<'span'> {
-  variant?: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  variant?: BadgeVariant;
+  size?: BadgeSize;
   animated?: boolean;
   pulse?: boolean;
   gradient?: boolean;
@@ -79,7 +82,7 @@ export const BadgeGroup: React.FC<{ children: React.ReactNode; className?: strin
 
 interface BuildTypeBadgeProps {
   type: 'canary' | 'dev' | 'beta' | 'insider' | 'release' | 'stable';
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: BadgeSize;
   animated?: boolean;
 }
 
@@ -109,11 +112,11 @@ export const BuildTypeBadge: React.FC<BuildTypeBadgeProps> = ({
 
 interface ChannelBadgeProps {
   channel: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
+  size?: BadgeSize;
 }
 
 export const ChannelBadge: React.FC<ChannelBadgeProps> = ({ channel, size = 'sm' }) => {
-  const getVariant = () => {
+  const getVariant = (): BadgeVariant => {
     const lowerChannel = channel.toLowerCase();
     if (lowerChannel.includes('stable')) return 'success';
     if (lowerChannel.includes('beta')) return 'primary';
@@ -123,7 +126,7 @@ export const ChannelBadge: React.FC<ChannelBadgeProps> = ({ channel, size = 'sm'
   };
 
   return (
-    <Badge variant={getVariant() as any} size={size}>
+    <Badge variant={getVariant()} size={size}>
       {channel}
     </Badge>
   );

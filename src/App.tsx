@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -15,6 +15,96 @@ import { cn } from './utils/cn';
 import type { TabType, FilterOptions, WindowsBuild, EdgeBuild, OfficeBuild } from './types';
 import { apiService } from './services/api';
 
+type BuildRecord = WindowsBuild | EdgeBuild | OfficeBuild;
+
+const isWindowsBuild = (build: BuildRecord): build is WindowsBuild => 'uuid' in build;
+const isEdgeBuild = (build: BuildRecord): build is EdgeBuild => 'Version' in build;
+const isOfficeBuild = (build: BuildRecord): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
+
+const getBuildKey = (build: BuildRecord, index: number) => {
+  if (isWindowsBuild(build)) return build.uuid;
+  if (isEdgeBuild(build)) return build.ReleaseId || `${build.Product}-${build.Version}-${build.Platform}-${build.Architecture}`;
+  return `${build.channel}-${build.version}-${build.build || build.title || index}`;
+};
+
+const getSearchText = (build: BuildRecord) => {
+  if (isWindowsBuild(build)) {
+    return [build.title, build.build_number, build.build, build.arch, build.build_type].filter(Boolean).join(' ');
+  }
+  if (isEdgeBuild(build)) {
+    return [build.Product, build.Version, build.Platform, build.Architecture].filter(Boolean).join(' ');
+  }
+  return [build.title, build.name, build.build, build.version, build.channel].filter(Boolean).join(' ');
+};
+
+const getComparableVersion = (build: BuildRecord) => {
+  if (isWindowsBuild(build)) return build.build_number || build.build || '';
+  if (isEdgeBuild(build)) return build.Version || '';
+  return build.build || build.version || '';
+};
+
+const getBuildTime = (build: BuildRecord) => {
+  const rawDate = isWindowsBuild(build)
+    ? build.created_timestamp || build.created
+    : isEdgeBuild(build)
+      ? build.PublishedTime
+      : build.releaseDate;
+  if (!rawDate) return 0;
+  const timestamp = typeof rawDate === 'number' ? rawDate * 1000 : new Date(rawDate).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const compareVersions = (a: string, b: string) => {
+  const aParts = a.split(/[^\d]+/).filter(Boolean).map(Number);
+  const bParts = b.split(/[^\d]+/).filter(Boolean).map(Number);
+  const length = Math.max(aParts.length, bParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const diff = (aParts[index] || 0) - (bParts[index] || 0);
+    if (diff !== 0) return diff;
+  }
+
+  return a.localeCompare(b);
+};
+
+const shouldKeepByDate = (build: BuildRecord, filters: FilterOptions) => {
+  if (isWindowsBuild(build)) return true;
+  const buildTime = getBuildTime(build);
+  if (!buildTime) return true;
+
+  const currentYearStr = new Date().getFullYear().toString();
+  const isCurrentYearOrAll = !filters.selectedYear || filters.selectedYear === 'All' || filters.selectedYear === currentYearStr;
+
+  if (isCurrentYearOrAll && (filters.selectedMonth === 'Last 60 Days' || filters.selectedMonth === 'Last 30 Days')) {
+    const days = filters.selectedMonth === 'Last 60 Days' ? 60 : 30;
+    return Date.now() - buildTime <= days * 24 * 60 * 60 * 1000;
+  }
+
+  const date = new Date(buildTime);
+  if (filters.selectedMonth && filters.selectedMonth !== 'All' && filters.selectedMonth !== 'Last 60 Days' && filters.selectedMonth !== 'Last 30 Days') {
+    const monthName = date.toLocaleString('en-US', { month: 'long' });
+    if (monthName !== filters.selectedMonth) return false;
+  }
+
+  if (filters.selectedYear && filters.selectedYear !== 'All') {
+    if (String(date.getFullYear()) !== filters.selectedYear) return false;
+  }
+
+  return true;
+};
+
+const getSortBy = (sortBy: FilterOptions['sortBy'], activeTab: TabType): NonNullable<FilterOptions['sortBy']> => {
+  if (activeTab === 'edge') {
+    return sortBy === 'date-desc' || sortBy === 'date-asc' || sortBy === 'version-desc' || sortBy === 'version-asc'
+      ? sortBy
+      : 'version-desc';
+  }
+
+  return sortBy === 'version-desc' || sortBy === 'version-asc'
+    ? 'build-desc'
+    : sortBy || 'build-desc';
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -26,7 +116,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   // Get initial tab from URL path or data attribute
-  const getInitialTab = (): TabType => {
+  const getInitialTab = useCallback((): TabType => {
     // First check data attribute from XenForo
     const rootElement = document.getElementById('windows-builds-root');
     if (rootElement) {
@@ -55,7 +145,7 @@ function AppContent() {
     }
 
     return 'windows11';
-  };
+  }, []);
 
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab());
   const [filters, setFilters] = useState<FilterOptions>({
@@ -74,10 +164,11 @@ function AppContent() {
   const [officeBuilds, setOfficeBuilds] = useState<OfficeBuild[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedBuild, setSelectedBuild] = useState<any>(null);
+  const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [modalOpen, setModalOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const requestIdRef = useRef(0);
 
   // Update document metadata based on active tab
   const updatePageMetadata = useCallback((tab: TabType) => {
@@ -238,11 +329,52 @@ function AppContent() {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [activeTab, updatePageMetadata]);
+  }, [activeTab, getInitialTab, updatePageMetadata]);
+
+  const loadBuilds = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    setLoading(true);
+    setError(null);
+
+    try {
+      switch (activeTab) {
+        case 'windows11':
+        case 'windows10':
+        case 'windowsServer': {
+          const windows = await apiService.fetchWindowsBuilds({ ...filters, tab: activeTab });
+          if (requestId !== requestIdRef.current) return;
+          setWindowsBuilds(windows);
+          break;
+        }
+        case 'edge': {
+          const edge = await apiService.fetchEdgeBuilds({ ...filters, tab: activeTab });
+          if (requestId !== requestIdRef.current) return;
+          setEdgeBuilds(edge);
+          break;
+        }
+        case 'office365': {
+          const office = await apiService.fetchOfficeBuilds({ ...filters, tab: activeTab });
+          if (requestId !== requestIdRef.current) return;
+          setOfficeBuilds(office);
+          break;
+        }
+      }
+      setLastUpdated(new Date());
+    } catch (err) {
+      if (requestId === requestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load builds');
+      }
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [activeTab, filters]);
 
   useEffect(() => {
     loadBuilds();
-  }, [activeTab, filters]);
+  }, [loadBuilds]);
 
   // Auto-refresh every 60 minutes
   useEffect(() => {
@@ -251,91 +383,56 @@ function AppContent() {
     }, 60 * 60 * 1000); // 60 minutes in milliseconds
 
     return () => clearInterval(interval);
-  }, [activeTab, filters]);
+  }, [loadBuilds]);
 
-  const loadBuilds = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      setLastUpdated(new Date());
-      switch (activeTab) {
-        case 'windows11':
-        case 'windows10':
-        case 'windowsServer':
-          const windows = await apiService.fetchWindowsBuilds({ ...filters, tab: activeTab });
-          setWindowsBuilds(windows);
-          break;
-        case 'edge':
-          const edge = await apiService.fetchEdgeBuilds({ ...filters, tab: activeTab });
-          setEdgeBuilds(edge);
-          break;
-        case 'office365':
-          const office = await apiService.fetchOfficeBuilds({ ...filters, tab: activeTab });
-          setOfficeBuilds(office);
-          break;
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load builds');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getCurrentBuilds = () => {
+  const getCurrentBuilds = (): BuildRecord[] => {
     if (activeTab === 'edge') return edgeBuilds;
     if (activeTab === 'office365') return officeBuilds;
     return windowsBuilds;
   };
 
   // Determine which filter to show based on active tab
-  const isEdgeOrOffice = activeTab === 'edge' || activeTab === 'office365';
+  const isEdgeTab = activeTab === 'edge';
+  const activeSortBy = getSortBy(filters.sortBy, activeTab);
 
   const filteredBuilds = getCurrentBuilds().filter(build => {
-    // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      const title = ((build as any).title || (build as any).Product || '').toLowerCase();
-      const buildNum = ((build as any).build_number || (build as any).Version || (build as any).version || '').toLowerCase();
-      if (!title.includes(query) && !buildNum.includes(query)) {
-        return false;
-      }
+      if (!getSearchText(build).toLowerCase().includes(query)) return false;
     }
 
-    // Platform filter for Edge/Office
-    if (isEdgeOrOffice && platformFilter !== 'All' && platformFilter) {
-      const buildPlatform = (build as any).Platform;
-      if (buildPlatform && buildPlatform !== platformFilter) {
-        return false;
-      }
+    if (isEdgeBuild(build) && platformFilter !== 'All' && platformFilter) {
+      if (build.Platform !== platformFilter) return false;
     }
 
-    // Download availability filter for Edge
-    if (activeTab === 'edge' && downloadFilter !== 'All') {
-      const hasDownloads = (build as any).Artifacts && (build as any).Artifacts.length > 0;
-      if (downloadFilter === 'Download Available' && !hasDownloads) {
-        return false;
-      }
-      if (downloadFilter === 'No Downloads' && hasDownloads) {
-        return false;
-      }
+    if (isOfficeBuild(build) && filters.officeChannel && filters.officeChannel !== 'All') {
+      if (build.channel !== filters.officeChannel) return false;
+    }
+
+    if (!shouldKeepByDate(build, filters)) return false;
+
+    if (isEdgeBuild(build) && downloadFilter !== 'All') {
+      const hasDownloads = Boolean(build.Artifacts?.length);
+      if (downloadFilter === 'Download Available' && !hasDownloads) return false;
+      if (downloadFilter === 'No Downloads' && hasDownloads) return false;
     }
 
     return true;
   }).sort((a, b) => {
-    // Sort by build number in descending order (highest first)
-    const getBuildNumber = (build: any): number => {
-      const buildStr = build.build_number || build.build || build.Version || build.version || '';
-      const match = buildStr.toString().match(/^(\d+)(?:\.(\d+))?/);
-      if (match) {
-        const major = parseInt(match[1]) || 0;
-        const minor = parseInt(match[2]) || 0;
-        return major * 100000 + minor;
-      }
-      return 0;
-    };
-
-    return getBuildNumber(b) - getBuildNumber(a);
+    switch (activeSortBy) {
+      case 'date-desc':
+        return getBuildTime(b) - getBuildTime(a);
+      case 'date-asc':
+        return getBuildTime(a) - getBuildTime(b);
+      case 'version-desc':
+      case 'build-desc':
+        return compareVersions(getComparableVersion(b), getComparableVersion(a));
+      case 'version-asc':
+      case 'build-asc':
+        return compareVersions(getComparableVersion(a), getComparableVersion(b));
+      default:
+        return 0;
+    }
   });
 
   const tabs = [
@@ -347,12 +444,26 @@ function AppContent() {
   ];
 
   const architectures = ['amd64', 'arm64', 'x86'];
-  const platforms = ['Windows', 'MacOS', 'Linux'];
+  const platforms = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'];
   const downloadFilters = ['All', 'Download Available', 'No Downloads'];
-  const months = ['Last 60 Days', 'Last 30 Days', 'January', 'February', 'March', 'April', 'May', 'June',
+  const months = ['Last 60 Days', 'Last 30 Days', 'All', 'January', 'February', 'March', 'April', 'May', 'June',
                   'July', 'August', 'September', 'October', 'November', 'December'];
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
+  const years = ['All', ...Array.from({ length: 5 }, (_, i) => (currentYear - i).toString())];
+  const officeChannels = Array.from(new Set(officeBuilds.map((build) => build.channel).filter(Boolean))).sort();
+  const sortOptions = activeTab === 'edge'
+    ? [
+        { value: 'version-desc', label: 'Version high to low' },
+        { value: 'version-asc', label: 'Version low to high' },
+        { value: 'date-desc', label: 'Newest first' },
+        { value: 'date-asc', label: 'Oldest first' },
+      ]
+    : [
+        { value: 'build-desc', label: 'Build high to low' },
+        { value: 'build-asc', label: 'Build low to high' },
+        { value: 'date-desc', label: 'Newest first' },
+        { value: 'date-asc', label: 'Oldest first' },
+      ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 transition-colors duration-500">
@@ -480,7 +591,7 @@ function AppContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Search */}
                 <div className="relative">
                   <input
@@ -496,8 +607,8 @@ function AppContent() {
                   </svg>
                 </div>
 
-                {/* Architecture for Windows or Platform for Edge/Office */}
-                {isEdgeOrOffice ? (
+                {/* Architecture, Edge platform, or Office channel */}
+                {isEdgeTab ? (
                   <select
                     value={platformFilter}
                     onChange={(e) => setPlatformFilter(e.target.value)}
@@ -506,6 +617,17 @@ function AppContent() {
                     <option value="All">All Platforms</option>
                     {platforms.map(platform => (
                       <option key={platform} value={platform}>{platform}</option>
+                    ))}
+                  </select>
+                ) : activeTab === 'office365' ? (
+                  <select
+                    value={filters.officeChannel || 'All'}
+                    onChange={(e) => setFilters({ ...filters, officeChannel: e.target.value === 'All' ? undefined : e.target.value })}
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="All">All Channels</option>
+                    {officeChannels.map(channel => (
+                      <option key={channel} value={channel}>{channel}</option>
                     ))}
                   </select>
                 ) : (
@@ -541,6 +663,17 @@ function AppContent() {
                     <option key={year} value={year}>{year}</option>
                   ))}
                 </select>
+
+                {/* Sort */}
+                <select
+                  value={activeSortBy}
+                  onChange={(e) => setFilters({ ...filters, sortBy: e.target.value as FilterOptions['sortBy'] })}
+                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {sortOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="mt-4 flex items-center gap-4 flex-wrap">
@@ -557,7 +690,7 @@ function AppContent() {
                   </select>
                 )}
 
-                {!isEdgeOrOffice && (
+                {activeTab !== 'office365' && (
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -649,7 +782,7 @@ function AppContent() {
                   <div className="flex-shrink-0 w-48 lg:w-56 xl:w-64">Build</div>
                   <div className="flex-shrink-0 w-20">Type</div>
                   <div className="flex-shrink-0 w-16 text-center">
-                    {isEdgeOrOffice ? 'Platform' : 'Arch'}
+                    {isEdgeTab ? 'Platform' : activeTab === 'office365' ? 'Channel' : 'Arch'}
                   </div>
                   <div className="flex-shrink-0 w-20">Date</div>
                   <div className="flex-shrink-0 w-24">Download</div>
@@ -666,7 +799,7 @@ function AppContent() {
                 {viewMode === 'grid' ? (
                 filteredBuilds.map((build, index) => (
                   <BuildCard
-                    key={(build as any).uuid || (build as any).ReleaseId || index}
+                    key={getBuildKey(build, index)}
                     build={build}
                     type={activeTab.includes('edge') ? 'edge' : activeTab.includes('office') ? 'office' : 'windows'}
                     onClick={() => {
@@ -679,7 +812,7 @@ function AppContent() {
               ) : (
                 filteredBuilds.map((build, index) => (
                   <BuildListItem
-                    key={(build as any).uuid || (build as any).ReleaseId || index}
+                    key={getBuildKey(build, index)}
                     build={build}
                     type={activeTab.includes('edge') ? 'edge' : activeTab.includes('office') ? 'office' : 'windows'}
                     onClick={() => {

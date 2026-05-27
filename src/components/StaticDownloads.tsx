@@ -61,10 +61,10 @@ export function StaticDownloads() {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Official Windows 11 25H2 Downloads
+                Archived Windows 11 25H2 Downloads
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Direct download links from Microsoft servers
+                Manually maintained Microsoft links; verify the latest builds below.
               </p>
             </div>
           </div>
@@ -123,8 +123,8 @@ export function StaticDownloads() {
                   d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div className="text-sm text-blue-800 dark:text-blue-200">
-                <p className="font-medium mb-1">Note about 25H2 Updates:</p>
-                <p>The KB5054156 enablement package can upgrade Windows 11 24H2 systems to 25H2. Install this update through Windows Update or manually using the MSU file above.</p>
+                <p className="font-medium mb-1">Archived manual links:</p>
+                <p>These downloads are retained for convenience and may lag behind the live build list. Use the current Windows 11 entries below for the newest build data.</p>
               </div>
             </div>
           </div>

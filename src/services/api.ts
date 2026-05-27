@@ -1,6 +1,6 @@
 import type { WindowsBuild, EdgeBuild, OfficeBuild, FilterOptions } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/builds';
+const API_BASE = (import.meta.env.VITE_API_BASE || '/api/builds').replace(/\/+$/, '');
 const CACHE_DURATION = 3600000; // 1 hour in milliseconds
 
 interface CacheEntry<T> {
@@ -9,12 +9,12 @@ interface CacheEntry<T> {
 }
 
 class ApiService {
-  private cache: Map<string, CacheEntry<any>> = new Map();
+  private cache: Map<string, CacheEntry<unknown>> = new Map();
 
   private getCached<T>(key: string): T | null {
     const entry = this.cache.get(key);
     if (entry && Date.now() - entry.timestamp < CACHE_DURATION) {
-      return entry.data;
+      return entry.data as T;
     }
     return null;
   }
@@ -23,52 +23,62 @@ class ApiService {
     this.cache.set(key, { data, timestamp: Date.now() });
   }
 
+  private async fetchJson<T>(path: string, params: URLSearchParams, init?: RequestInit): Promise<T> {
+    const query = params.toString();
+    const response = await fetch(`${API_BASE}${path}${query ? `?${query}` : ''}`, init);
+
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const body = await response.json();
+        detail = body.detail || body.message || detail;
+      } catch {
+        // Keep the status text if the backend returned a non-JSON error.
+      }
+      throw new Error(`${response.status} ${detail}`.trim());
+    }
+
+    return response.json() as Promise<T>;
+  }
+
   async fetchWindowsBuilds(filters?: FilterOptions): Promise<WindowsBuild[]> {
     const cacheKey = `windows-builds-${JSON.stringify(filters || {})}`;
     const cached = this.getCached<WindowsBuild[]>(cacheKey);
     if (cached) return cached;
 
-    try {
-      const params = new URLSearchParams();
+    const params = new URLSearchParams();
+    const version = filters?.tab === 'windows10' ? 'Windows 10' :
+                   filters?.tab === 'windowsServer' ? 'Windows Server' : 'Windows 11';
+    params.append('version', version);
 
-      // Determine Windows version based on tab
-      const version = filters?.tab === 'windows10' ? 'Windows 10' :
-                     filters?.tab === 'windowsServer' ? 'Windows Server' : 'Windows 11';
-      params.append('version', version);
+    if (filters?.selectedArch) params.append('arch', filters.selectedArch);
+    if (filters?.buildFilter) params.append('search', filters.buildFilter);
+    if (filters?.excludeInsider) params.append('exclude_insider', String(filters.excludeInsider));
 
-      if (filters?.selectedArch) params.append('arch', filters.selectedArch);
-      if (filters?.buildFilter) params.append('search', filters.buildFilter);
-      if (filters?.excludeInsider) params.append('exclude_insider', String(filters.excludeInsider));
+    const currentYearStr = new Date().getFullYear().toString();
+    const isCurrentYearOrAll = !filters?.selectedYear || filters?.selectedYear === 'All' || filters?.selectedYear === currentYearStr;
 
-      // Handle rolling date filter - use 'use_rolling' flag when "Last X Days" is selected
-      if (filters?.selectedMonth === 'Last 60 Days') {
-        params.append('use_rolling', 'true');
-        params.append('rolling_days', '60');
-      } else if (filters?.selectedMonth === 'Last 30 Days') {
-        params.append('use_rolling', 'true');
-        params.append('rolling_days', '30');
-      } else {
-        if (filters?.selectedMonth && filters.selectedMonth !== 'All') {
-          params.append('month', filters.selectedMonth);
-        }
-        if (filters?.selectedYear && filters.selectedYear !== 'All') {
-          params.append('year', filters.selectedYear);
-        }
+    if (isCurrentYearOrAll && filters?.selectedMonth === 'Last 60 Days') {
+      params.append('use_rolling', 'true');
+      params.append('rolling_days', '60');
+    } else if (isCurrentYearOrAll && filters?.selectedMonth === 'Last 30 Days') {
+      params.append('use_rolling', 'true');
+      params.append('rolling_days', '30');
+    } else {
+      if (filters?.selectedMonth && filters.selectedMonth !== 'All' && filters.selectedMonth !== 'Last 60 Days' && filters.selectedMonth !== 'Last 30 Days') {
+        params.append('month', filters.selectedMonth);
       }
-
-      if (filters?.buildType) params.append('build_type', filters.buildType);
-
-      const response = await fetch(`${API_BASE}/windows?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch Windows builds');
-
-      const data = await response.json();
-      const builds = data.builds || [];
-      this.setCache(cacheKey, builds);
-      return builds;
-    } catch (error) {
-      console.error('Error fetching Windows builds:', error);
-      return [];
+      if (filters?.selectedYear && filters.selectedYear !== 'All') {
+        params.append('year', filters.selectedYear);
+      }
     }
+
+    if (filters?.buildType) params.append('build_type', filters.buildType);
+
+    const data = await this.fetchJson<{ builds?: WindowsBuild[] }>('/windows', params);
+    const builds = data.builds || [];
+    this.setCache(cacheKey, builds);
+    return builds;
   }
 
   async fetchEdgeBuilds(filters?: FilterOptions): Promise<EdgeBuild[]> {
@@ -76,22 +86,14 @@ class ApiService {
     const cached = this.getCached<EdgeBuild[]>(cacheKey);
     if (cached) return cached;
 
-    try {
-      const params = new URLSearchParams();
-      if (filters?.excludeInsider) params.append('exclude_insider', 'true');
-      if (filters?.buildFilter) params.append('search', filters.buildFilter);
+    const params = new URLSearchParams();
+    if (filters?.excludeInsider) params.append('exclude_insider', 'true');
+    if (filters?.buildFilter) params.append('search', filters.buildFilter);
 
-      const response = await fetch(`${API_BASE}/edge?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch Edge builds');
-
-      const data = await response.json();
-      const builds = data.builds || [];
-      this.setCache(cacheKey, builds);
-      return builds;
-    } catch (error) {
-      console.error('Error fetching Edge builds:', error);
-      return [];
-    }
+    const data = await this.fetchJson<{ builds?: EdgeBuild[] }>('/edge', params);
+    const builds = data.builds || [];
+    this.setCache(cacheKey, builds);
+    return builds;
   }
 
   async fetchOfficeBuilds(filters?: FilterOptions): Promise<OfficeBuild[]> {
@@ -99,41 +101,26 @@ class ApiService {
     const cached = this.getCached<OfficeBuild[]>(cacheKey);
     if (cached) return cached;
 
-    try {
-      const params = new URLSearchParams();
-      if (filters?.buildFilter) params.append('search', filters.buildFilter);
+    const params = new URLSearchParams();
+    if (filters?.buildFilter) params.append('search', filters.buildFilter);
 
-      const response = await fetch(`${API_BASE}/office365?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch Office builds');
-
-      const data = await response.json();
-      const builds = data.builds || [];
-      this.setCache(cacheKey, builds);
-      return builds;
-    } catch (error) {
-      console.error('Error fetching Office builds:', error);
-      return [];
-    }
+    const data = await this.fetchJson<{ builds?: OfficeBuild[] }>('/office365', params);
+    const builds = data.builds || [];
+    this.setCache(cacheKey, builds);
+    return builds;
   }
 
   async fetchBuildSummary(uuid: string, title: string, buildType: string = 'windows'): Promise<string> {
-    try {
-      const params = new URLSearchParams();
-      params.append('uuid', uuid);
-      params.append('title', title);
-      params.append('build_type', buildType);
+    const params = new URLSearchParams();
+    params.append('uuid', uuid);
+    params.append('title', title);
+    params.append('build_type', buildType);
 
-      const response = await fetch(`${API_BASE}/summary?${params}`, {
-        method: 'POST'
-      });
-      if (!response.ok) throw new Error('Failed to fetch build summary');
-
-      const data = await response.json();
-      return data.summary || 'No summary available';
-    } catch (error) {
-      console.error('Error fetching build summary:', error);
-      return 'Failed to load summary';
-    }
+    const data = await this.fetchJson<{ summary?: string }>('/summary', params, {
+      method: 'POST',
+      body: '',
+    });
+    return data.summary || 'No summary available';
   }
 
   async fetchAllBuilds(filters?: FilterOptions): Promise<{
@@ -141,24 +128,20 @@ class ApiService {
     edge: EdgeBuild[];
     office: OfficeBuild[];
   }> {
-    try {
-      const params = new URLSearchParams();
-      if (filters?.excludeInsider) params.append('exclude_insider', String(filters.excludeInsider));
-      params.append('limit', '100');
+    const params = new URLSearchParams();
+    if (filters?.excludeInsider) params.append('exclude_insider', String(filters.excludeInsider));
+    params.append('limit', '100');
 
-      const response = await fetch(`${API_BASE}/all?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch all builds');
-
-      const data = await response.json();
-      return {
-        windows: data.windows || [],
-        edge: data.edge || [],
-        office: data.office365 || []
-      };
-    } catch (error) {
-      console.error('Error fetching all builds:', error);
-      return { windows: [], edge: [], office: [] };
-    }
+    const data = await this.fetchJson<{
+      windows?: WindowsBuild[];
+      edge?: EdgeBuild[];
+      office365?: OfficeBuild[];
+    }>('/all', params);
+    return {
+      windows: data.windows || [],
+      edge: data.edge || [],
+      office: data.office365 || []
+    };
   }
 
 }

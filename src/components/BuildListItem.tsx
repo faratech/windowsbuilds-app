@@ -3,16 +3,23 @@ import { motion } from 'framer-motion';
 import { Badge, BuildTypeBadge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { cn } from '../utils/cn';
+import type { EdgeBuild, OfficeBuild, WindowsBuild } from '../types';
+
+type BuildListRecord = WindowsBuild | EdgeBuild | OfficeBuild;
 
 interface BuildListItemProps {
-  build: any;
+  build: BuildListRecord;
   type: 'windows' | 'edge' | 'office';
   onClick?: () => void;
   index?: number;
 }
 
-export const BuildListItem: React.FC<BuildListItemProps> = ({ build, type, onClick, index = 0 }) => {
-  const formatDate = (date: string | number) => {
+const isWindowsBuild = (build: BuildListRecord): build is WindowsBuild => 'uuid' in build;
+const isEdgeBuild = (build: BuildListRecord): build is EdgeBuild => 'Version' in build;
+const isOfficeBuild = (build: BuildListRecord): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
+
+export const BuildListItem: React.FC<BuildListItemProps> = ({ build, onClick, index = 0 }) => {
+  const formatDate = (date?: string | number) => {
     if (!date) return 'Unknown';
     const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);
     return d.toLocaleDateString('en-US', {
@@ -23,13 +30,13 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, type, onCli
   };
 
   const getTitle = () => {
-    if (type === 'edge') {
+    if (isEdgeBuild(build)) {
       return `Edge ${build.Product || ''}`;
     }
-    if (type === 'office') {
+    if (isOfficeBuild(build)) {
       return build.title || build.name || 'Office 365';
     }
-    const title = build.title || build.Product || 'Unknown Build';
+    const title = build.title || 'Unknown Build';
     // Shorten Windows titles
     return title
       .replace('Windows 11', 'Win 11')
@@ -40,14 +47,29 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, type, onCli
   };
 
   const getBuildNumber = () => {
-    return build.build_number || build.Version || build.version || '';
+    if (isWindowsBuild(build)) return build.build_number || build.build || '';
+    if (isEdgeBuild(build)) return build.Version || '';
+    return build.build || build.version || '';
+  };
+
+  const getDate = () => {
+    if (isWindowsBuild(build)) return build.created || build.created_timestamp;
+    if (isEdgeBuild(build)) return build.PublishedTime;
+    return build.releaseDate;
   };
 
   const hasDownload = () => {
-    if (type === 'windows' && build.uuid) return true;
-    if (type === 'edge' && build.Artifacts && build.Artifacts.length > 0) return true;
-    if (type === 'office') return true;
+    if (isWindowsBuild(build)) return true;
+    if (isEdgeBuild(build) && build.Artifacts && build.Artifacts.length > 0) return true;
+    if (isOfficeBuild(build)) return true;
     return false;
+  };
+
+  const getDownloadUrl = () => {
+    if (isWindowsBuild(build)) return `https://uupdump.net/selectlang.php?id=${build.uuid}`;
+    if (isEdgeBuild(build) && build.Artifacts?.length) return build.Artifacts[0].Location;
+    if (isOfficeBuild(build)) return 'https://www.microsoft.com/en-us/download/office.aspx';
+    return null;
   };
 
   return (
@@ -75,15 +97,15 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, type, onCli
 
       {/* Build Type/Channel Badge */}
       <div className="flex-shrink-0 w-20">
-        {type === 'windows' && build.build_type && (
+        {isWindowsBuild(build) && build.build_type && (
           <BuildTypeBadge type={build.build_type} size="xs" />
         )}
-        {type === 'edge' && build.Product && (
+        {isEdgeBuild(build) && build.Product && (
           <Badge variant="info" size="xs">
             {build.Product}
           </Badge>
         )}
-        {type === 'office' && build.channel && (
+        {isOfficeBuild(build) && build.channel && (
           <Badge variant="primary" size="xs">
             {build.channel}
           </Badge>
@@ -92,27 +114,25 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, type, onCli
 
       {/* Platform/Architecture */}
       <div className="flex-shrink-0 w-16 text-center">
-        {type === 'windows' && build.arch && (
+        {isWindowsBuild(build) && build.arch && (
           <span className="text-xs text-gray-600 dark:text-gray-400">{build.arch}</span>
         )}
-        {type === 'edge' && build.Platform && (
+        {isEdgeBuild(build) && build.Platform && (
           <span className="text-xs text-gray-600 dark:text-gray-400">{build.Platform}</span>
+        )}
+        {isOfficeBuild(build) && build.channel && (
+          <span className="text-xs text-gray-600 dark:text-gray-400">{build.channel}</span>
         )}
       </div>
 
       {/* Date */}
       <div className="flex-shrink-0 w-20 text-xs text-gray-500 dark:text-gray-500">
-        {formatDate(
-          build.created ||
-          build.created_timestamp ||
-          build.PublishedTime ||
-          build.releaseDate
-        )}
+        {formatDate(getDate())}
       </div>
 
       {/* Download Status */}
       <div className="flex-shrink-0 w-24">
-        {type === 'edge' ? (
+        {isEdgeBuild(build) ? (
           build.Artifacts && build.Artifacts.length > 0 ? (
             <Badge variant="success" size="xs">
               <svg className="w-3 h-3 mr-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -144,14 +164,7 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, type, onCli
             size="xs"
             onClick={(e) => {
               e.stopPropagation();
-              let url = null;
-              if (type === 'windows' && build.uuid) {
-                url = `https://uupdump.net/selectlang.php?id=${build.uuid}`;
-              } else if (type === 'edge' && build.Artifacts && build.Artifacts.length > 0) {
-                url = build.Artifacts[0].Location;
-              } else if (type === 'office') {
-                url = 'https://www.microsoft.com/en-us/download/office.aspx';
-              }
+              const url = getDownloadUrl();
               if (url) {
                 window.open(url, '_blank', 'noopener,noreferrer');
               }
