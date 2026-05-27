@@ -257,35 +257,10 @@ function AppContent() {
     };
     canonical.setAttribute('href', baseUrl + tabPaths[tab]);
 
-    // Add structured data
-    let jsonLd = document.querySelector('script[type="application/ld+json"]');
-    if (!jsonLd) {
-      jsonLd = document.createElement('script');
-      jsonLd.setAttribute('type', 'application/ld+json');
-      document.head.appendChild(jsonLd);
-    }
-
-    const structuredData = {
-      '@context': 'https://schema.org',
-      '@type': 'WebApplication',
-      'name': data.title,
-      'description': data.description,
-      'url': baseUrl + tabPaths[tab],
-      'applicationCategory': 'UtilitiesApplication',
-      'operatingSystem': 'Web Browser',
-      'offers': {
-        '@type': 'Offer',
-        'price': '0',
-        'priceCurrency': 'USD'
-      },
-      'publisher': {
-        '@type': 'Organization',
-        'name': 'WindowsForum',
-        'url': 'https://windowsforum.com'
-      }
-    };
-
-    jsonLd.textContent = JSON.stringify(structuredData);
+    // JSON-LD is set server-side in templates.xml with the full WebApplication +
+    // ItemList payload. Don't overwrite it here — the client-only blob lacks
+    // mainEntity.ItemList and would downgrade the rendered DOM. SPA tab changes
+    // don't trigger a fresh crawl, so the SSR JSON-LD remaining static is fine.
   }, []);
 
   // Handle tab changes and update URL
