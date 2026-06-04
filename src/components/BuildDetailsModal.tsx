@@ -5,9 +5,11 @@ import { Badge, BuildTypeBadge, ChannelBadge } from './ui/Badge';
 import { Card } from './ui/Card';
 import { Skeleton } from './ui/Skeleton';
 import { apiService } from '../services/api';
-import type { EdgeArtifact, EdgeBuild, OfficeBuild, WindowsBuild } from '../types';
+import { kindMeta, statusMeta } from '../config/releaseChannels';
+import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from '../utils/typeGuards';
+import type { EdgeArtifact } from '../types';
 
-type BuildDetails = WindowsBuild | EdgeBuild | OfficeBuild;
+type BuildDetails = BuildRecord;
 
 interface BuildDetailsModalProps {
   build: BuildDetails;
@@ -15,10 +17,6 @@ interface BuildDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const isWindowsBuild = (build: BuildDetails): build is WindowsBuild => 'uuid' in build;
-const isEdgeBuild = (build: BuildDetails): build is EdgeBuild => 'Version' in build;
-const isOfficeBuild = (build: BuildDetails): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
 
 export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
   build,
@@ -28,6 +26,8 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
 }) => {
   const [summary, setSummary] = useState<string>('');
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +62,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
     }
 
     setSummary('');
+    setSummaryError(false);
     setLoadingSummary(true);
     apiService.fetchBuildSummary(uuid, title, buildType)
       .then((fetchedSummary) => {
@@ -69,7 +70,10 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
       })
       .catch((error: unknown) => {
         console.error('Failed to fetch summary:', error);
-        if (!cancelled) setSummary('Summary unavailable');
+        if (!cancelled) {
+          setSummary('');
+          setSummaryError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingSummary(false);
@@ -78,7 +82,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, build, type]);
+  }, [isOpen, build, type, retryNonce]);
 
   const getBuildTitle = () => {
     if (isEdgeBuild(build)) {
@@ -214,6 +218,19 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
               {isWindowsBuild(build) && build.build_type && (
                 <BuildTypeBadge type={build.build_type} />
               )}
+              {isWindowsBuild(build) && build.branch && (
+                <Badge variant="secondary">{build.branch}</Badge>
+              )}
+              {isWindowsBuild(build) && build.kind && kindMeta(build.kind) && (
+                <Badge variant="default" className={kindMeta(build.kind)!.badgeClass}>
+                  {kindMeta(build.kind)!.label}
+                </Badge>
+              )}
+              {isWindowsBuild(build) && build.status && statusMeta(build.status) && (
+                <Badge variant="default" className={statusMeta(build.status)!.badgeClass} aria-label={statusMeta(build.status)!.aria}>
+                  {statusMeta(build.status)!.label}
+                </Badge>
+              )}
               {isEdgeBuild(build) && build.Product && (
                 <ChannelBadge channel={build.Product} />
               )}
@@ -228,7 +245,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
         </div>
 
         {/* Summary */}
-        {(summary || loadingSummary) && (
+        {(summary || loadingSummary || summaryError) && (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Summary
@@ -238,6 +255,13 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
                 <div className="space-y-2">
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-3/4" />
+                </div>
+              ) : summaryError ? (
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-gray-600 dark:text-gray-400">Couldn’t load the summary.</p>
+                  <Button variant="outline" size="sm" onClick={() => setRetryNonce((n) => n + 1)}>
+                    Retry
+                  </Button>
                 </div>
               ) : (
                 <p className="text-gray-700 dark:text-gray-300">

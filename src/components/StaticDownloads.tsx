@@ -1,48 +1,15 @@
 import { motion } from 'framer-motion';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
-
-interface DownloadLink {
-  title: string;
-  description: string;
-  architecture: string;
-  type: 'iso' | 'update';
-  url: string;
-  size?: string;
-}
-
-const staticDownloads: DownloadLink[] = [
-  {
-    title: 'Windows 11 25H2 ISO',
-    description: 'Build 26200.6584 (September 2025 Release)',
-    architecture: 'x64',
-    type: 'iso',
-    url: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_x64FRE_en-us.iso',
-  },
-  {
-    title: 'Windows 11 25H2 ISO',
-    description: 'Build 26200.6584 (September 2025 Release)',
-    architecture: 'arm64',
-    type: 'iso',
-    url: 'https://software-static.download.prss.microsoft.com/dbazure/888969d5-f34g-4e03-ac9d-1f9786c66749/26200.6584.250915-1905.25h2_ge_release_svc_refresh_CLIENT_CONSUMER_A64FRE_en-us.iso',
-  },
-  {
-    title: 'KB5054156 - 24H2 to 25H2 Update',
-    description: 'Enablement Package for Windows 11 25H2',
-    architecture: 'x64',
-    type: 'update',
-    url: 'https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/fa84cc49-18b2-4c26-b389-90c96e6ae0d2/public/windows11.0-kb5054156-x64_a0c1638cbcf4cf33dbe9a5bef69db374b4786974.msu',
-  },
-  {
-    title: 'KB5054156 - 24H2 to 25H2 Update',
-    description: 'Enablement Package for Windows 11 25H2',
-    architecture: 'arm64',
-    type: 'update',
-    url: 'https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/78b265e5-83a8-4e0a-9060-efbe0bac5bde/public/windows11.0-kb5054156-arm64_3d5c91aaeb08a87e0717f263ad4a61186746e465.msu',
-  },
-];
+import {
+  STATIC_DOWNLOADS,
+  STATIC_DOWNLOADS_NEWEST,
+  isStaticDownloadsStale,
+} from '../config/staticDownloads';
 
 export function StaticDownloads() {
+  const stale = isStaticDownloadsStale();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -61,7 +28,7 @@ export function StaticDownloads() {
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Archived Windows 11 25H2 Downloads
+                Archived Windows 11 Downloads
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Manually maintained Microsoft links; verify the latest builds below.
@@ -69,8 +36,26 @@ export function StaticDownloads() {
             </div>
           </div>
 
+          {stale && (
+            <div
+              role="status"
+              className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+            >
+              <div className="flex gap-2">
+                <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  These archived links may be out of date (last refreshed {STATIC_DOWNLOADS_NEWEST}).
+                  Use the live build list below for the newest Windows 11 release.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {staticDownloads.map((download, index) => (
+            {STATIC_DOWNLOADS.map((download, index) => (
               <motion.div
                 key={index}
                 initial={{ opacity: 0, y: 10 }}
@@ -114,19 +99,6 @@ export function StaticDownloads() {
                 </Card>
               </motion.div>
             ))}
-          </div>
-
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <div className="flex gap-2">
-              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-sm text-blue-800 dark:text-blue-200">
-                <p className="font-medium mb-1">Archived manual links:</p>
-                <p>These downloads are retained for convenience and may lag behind the live build list. Use the current Windows 11 entries below for the newest build data.</p>
-              </div>
-            </div>
           </div>
         </div>
       </Card>

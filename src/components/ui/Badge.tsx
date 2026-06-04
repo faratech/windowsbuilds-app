@@ -1,6 +1,8 @@
 import React from 'react';
 import { motion, type HTMLMotionProps } from 'framer-motion';
 import { cn } from '../../utils/cn';
+import { channelMeta } from '../../config/releaseChannels';
+import type { ReleaseChannel } from '../../types';
 
 type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
 type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -81,31 +83,24 @@ export const BadgeGroup: React.FC<{ children: React.ReactNode; className?: strin
 }) => <div className={cn('flex flex-wrap gap-2', className)}>{children}</div>;
 
 interface BuildTypeBadgeProps {
-  type: 'canary' | 'dev' | 'beta' | 'insider' | 'release' | 'stable';
+  type: ReleaseChannel | string;
   size?: BadgeSize;
   animated?: boolean;
 }
 
+// Channel badge driven entirely by the shared releaseChannels config, so adding
+// a new channel (Experimental, Release Preview, ...) needs no edit here.
 export const BuildTypeBadge: React.FC<BuildTypeBadgeProps> = ({
   type,
   size = 'sm',
   animated = true,
 }) => {
-  const typeConfig = {
-    canary: { variant: 'warning' as const, label: 'Canary', icon: '🐤' },
-    dev: { variant: 'secondary' as const, label: 'Dev', icon: '⚡' },
-    beta: { variant: 'primary' as const, label: 'Beta', icon: '🧪' },
-    insider: { variant: 'success' as const, label: 'Insider', icon: '🔓' },
-    release: { variant: 'info' as const, label: 'Release', icon: '📦' },
-    stable: { variant: 'success' as const, label: 'Stable', icon: '✅' },
-  };
-
-  const config = typeConfig[type];
+  const meta = channelMeta(type);
 
   return (
-    <Badge variant={config.variant} size={size} animated={animated} gradient>
-      <span className="text-xs">{config.icon}</span>
-      {config.label}
+    <Badge variant="default" size={size} animated={animated} className={meta.badgeClass} aria-label={meta.aria}>
+      <span className="text-xs" aria-hidden="true">{meta.icon}</span>
+      {meta.label}
     </Badge>
   );
 };
@@ -115,18 +110,22 @@ interface ChannelBadgeProps {
   size?: BadgeSize;
 }
 
+// Edge Product names map onto release channels for colour; the original label is
+// preserved (e.g. "Extended Stable"). Unknown strings render neutral grey.
+const EDGE_CHANNEL_TO_RELEASE: Record<string, ReleaseChannel> = {
+  stable: 'release',
+  'extended stable': 'release',
+  beta: 'beta',
+  dev: 'dev',
+  canary: 'canary',
+};
+
 export const ChannelBadge: React.FC<ChannelBadgeProps> = ({ channel, size = 'sm' }) => {
-  const getVariant = (): BadgeVariant => {
-    const lowerChannel = channel.toLowerCase();
-    if (lowerChannel.includes('stable')) return 'success';
-    if (lowerChannel.includes('beta')) return 'primary';
-    if (lowerChannel.includes('dev')) return 'secondary';
-    if (lowerChannel.includes('canary')) return 'warning';
-    return 'default';
-  };
+  const key = channel.toLowerCase();
+  const meta = channelMeta(EDGE_CHANNEL_TO_RELEASE[key] ?? key);
 
   return (
-    <Badge variant={getVariant()} size={size}>
+    <Badge variant="default" size={size} className={meta.badgeClass} aria-label={`${channel} channel`}>
       {channel}
     </Badge>
   );

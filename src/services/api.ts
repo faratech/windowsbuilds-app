@@ -3,6 +3,17 @@ import type { WindowsBuild, EdgeBuild, OfficeBuild, FilterOptions } from '../typ
 const API_BASE = (import.meta.env.VITE_API_BASE || '/api/builds').replace(/\/+$/, '');
 const CACHE_DURATION = 3600000; // 1 hour in milliseconds
 
+// Defensive: backends emit lowercase channel slugs, but normalize anyway so the
+// frontend never has to worry about casing drift between the Python/PHP sources.
+function normalizeBuilds<T extends { build_type?: string }>(builds: T[]): T[] {
+  for (const build of builds) {
+    if (typeof build.build_type === 'string') {
+      build.build_type = build.build_type.toLowerCase() as T['build_type'];
+    }
+  }
+  return builds;
+}
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -76,7 +87,7 @@ class ApiService {
     if (filters?.buildType) params.append('build_type', filters.buildType);
 
     const data = await this.fetchJson<{ builds?: WindowsBuild[] }>('/windows', params);
-    const builds = data.builds || [];
+    const builds = normalizeBuilds(data.builds || []);
     this.setCache(cacheKey, builds);
     return builds;
   }
@@ -91,7 +102,7 @@ class ApiService {
     if (filters?.buildFilter) params.append('search', filters.buildFilter);
 
     const data = await this.fetchJson<{ builds?: EdgeBuild[] }>('/edge', params);
-    const builds = data.builds || [];
+    const builds = normalizeBuilds(data.builds || []);
     this.setCache(cacheKey, builds);
     return builds;
   }
@@ -105,7 +116,7 @@ class ApiService {
     if (filters?.buildFilter) params.append('search', filters.buildFilter);
 
     const data = await this.fetchJson<{ builds?: OfficeBuild[] }>('/office365', params);
-    const builds = data.builds || [];
+    const builds = normalizeBuilds(data.builds || []);
     this.setCache(cacheKey, builds);
     return builds;
   }

@@ -3,9 +3,10 @@ import { motion } from 'framer-motion';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './ui/Card';
 import { Badge, BuildTypeBadge, ChannelBadge } from './ui/Badge';
 import { Button } from './ui/Button';
-import type { EdgeBuild, OfficeBuild, WindowsBuild } from '../types';
+import { kindMeta, statusMeta } from '../config/releaseChannels';
+import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from '../utils/typeGuards';
 
-type BuildCardRecord = WindowsBuild | EdgeBuild | OfficeBuild;
+type BuildCardRecord = BuildRecord;
 
 interface BuildCardProps {
   build: BuildCardRecord;
@@ -13,10 +14,6 @@ interface BuildCardProps {
   onClick?: () => void;
   index?: number;
 }
-
-const isWindowsBuild = (build: BuildCardRecord): build is WindowsBuild => 'uuid' in build;
-const isEdgeBuild = (build: BuildCardRecord): build is EdgeBuild => 'Version' in build;
-const isOfficeBuild = (build: BuildCardRecord): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
 
 export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, index = 0 }) => {
   const formatDate = (date?: string | number) => {
@@ -136,6 +133,21 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
           <div className="flex flex-wrap gap-2 mb-3">
             {isWindowsBuild(build) && build.build_type && (
               <BuildTypeBadge type={build.build_type} />
+            )}
+            {isWindowsBuild(build) && build.branch && (
+              <Badge variant="secondary" size="sm">
+                {build.branch}
+              </Badge>
+            )}
+            {isWindowsBuild(build) && build.kind && kindMeta(build.kind) && (
+              <Badge variant="default" size="sm" className={kindMeta(build.kind)!.badgeClass}>
+                {kindMeta(build.kind)!.label}
+              </Badge>
+            )}
+            {isWindowsBuild(build) && build.status && statusMeta(build.status) && (
+              <Badge variant="default" size="sm" className={statusMeta(build.status)!.badgeClass} aria-label={statusMeta(build.status)!.aria}>
+                {statusMeta(build.status)!.label}
+              </Badge>
             )}
             {isWindowsBuild(build) && build.arch && (
               <Badge variant="secondary" size="sm">

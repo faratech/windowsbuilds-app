@@ -18,6 +18,9 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     minify: 'terser',
+    // Emit dist/.vite/manifest.json so update-controller.sh can resolve the
+    // hashed entry assets deterministically instead of guessing with `ls -t`.
+    manifest: true,
     rollupOptions: {
       output: {
         manualChunks(id: string) {

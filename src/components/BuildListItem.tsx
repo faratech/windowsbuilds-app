@@ -3,9 +3,9 @@ import { motion } from 'framer-motion';
 import { Badge, BuildTypeBadge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { cn } from '../utils/cn';
-import type { EdgeBuild, OfficeBuild, WindowsBuild } from '../types';
+import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from '../utils/typeGuards';
 
-type BuildListRecord = WindowsBuild | EdgeBuild | OfficeBuild;
+type BuildListRecord = BuildRecord;
 
 interface BuildListItemProps {
   build: BuildListRecord;
@@ -13,10 +13,6 @@ interface BuildListItemProps {
   onClick?: () => void;
   index?: number;
 }
-
-const isWindowsBuild = (build: BuildListRecord): build is WindowsBuild => 'uuid' in build;
-const isEdgeBuild = (build: BuildListRecord): build is EdgeBuild => 'Version' in build;
-const isOfficeBuild = (build: BuildListRecord): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
 
 export const BuildListItem: React.FC<BuildListItemProps> = ({ build, onClick, index = 0 }) => {
   const formatDate = (date?: string | number) => {

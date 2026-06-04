@@ -14,12 +14,8 @@ import { Badge } from './components/ui/Badge';
 import { cn } from './utils/cn';
 import type { TabType, FilterOptions, WindowsBuild, EdgeBuild, OfficeBuild } from './types';
 import { apiService } from './services/api';
-
-type BuildRecord = WindowsBuild | EdgeBuild | OfficeBuild;
-
-const isWindowsBuild = (build: BuildRecord): build is WindowsBuild => 'uuid' in build;
-const isEdgeBuild = (build: BuildRecord): build is EdgeBuild => 'Version' in build;
-const isOfficeBuild = (build: BuildRecord): build is OfficeBuild => 'channel' in build && !('uuid' in build) && !('Version' in build);
+import { QuickFilterBar } from './components/filters/QuickFilterBar';
+import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from './utils/typeGuards';
 
 const getBuildKey = (build: BuildRecord, index: number) => {
   if (isWindowsBuild(build)) return build.uuid;
@@ -174,19 +170,19 @@ function AppContent() {
   const updatePageMetadata = useCallback((tab: TabType) => {
     const metaData = {
       windows11: {
-        title: 'Windows 11 Builds Tracker - Latest Updates & Downloads',
-        description: 'Track all Windows 11 builds including Insider Preview, Canary, Dev, Beta and Release channels. Get version history, download links, and AI summaries.',
-        keywords: 'Windows 11 builds, Windows 11 insider, Windows 11 preview, Windows 11 updates, Windows 11 24H2, Windows 11 23H2'
+        title: 'Windows 11 Builds Tracker - 25H2, Insider & Release Channels',
+        description: 'Track every Windows 11 build across the Experimental (formerly Dev), Beta, Release Preview and retail channels, including 25H2 (26200) and 24H2 (26100). Version history, download links, and AI summaries.',
+        keywords: 'Windows 11 builds, Windows 11 25H2, Windows 11 24H2, Windows 11 Experimental, Windows 11 Release Preview, Windows 11 Insider, Windows 11 Canary, Windows 11 enablement package'
       },
       windows10: {
-        title: 'Windows 10 Builds Tracker - Version History & Updates',
-        description: 'Monitor Windows 10 builds across all channels. Track cumulative updates, feature updates, and insider preview builds with detailed information.',
-        keywords: 'Windows 10 builds, Windows 10 updates, Windows 10 insider, Windows 10 22H2, Windows 10 cumulative updates'
+        title: 'Windows 10 Builds Tracker - 22H2 & End of Support',
+        description: 'Windows 10 reached end of support on October 14, 2025 (final build 19045.6456). Track the Windows 10 22H2 servicing history and Extended Security Updates (ESU).',
+        keywords: 'Windows 10 builds, Windows 10 22H2, Windows 10 end of support, Windows 10 ESU, Windows 10 19045, Windows 10 EOL'
       },
       windowsServer: {
-        title: 'Windows Server Builds - Server 2022, 2019, 2016 Updates',
-        description: 'Track Windows Server builds including Server 2022, Server 2019, and Server 2016. Monitor updates, security patches, and preview builds.',
-        keywords: 'Windows Server builds, Windows Server 2022, Windows Server 2019, Server updates, Server insider preview'
+        title: 'Windows Server Builds - Server 2025, 2022 & LTSC',
+        description: 'Track Windows Server builds across LTSC and the Annual Channel, including Windows Server 2025 (26100) and Server 2022. Monitor cumulative updates, hotpatch baselines, and Insider previews.',
+        keywords: 'Windows Server builds, Windows Server 2025, Windows Server 2022, Server LTSC, Server Annual Channel, Server hotpatch, Server Insider'
       },
       edge: {
         title: 'Microsoft Edge Builds - Stable, Beta, Dev & Canary Versions',
@@ -376,6 +372,11 @@ function AppContent() {
       if (!getSearchText(build).toLowerCase().includes(query)) return false;
     }
 
+    // Channel quick-filter (Experimental / Beta / Release Preview / ...).
+    if (filters.buildType && build.build_type && build.build_type !== filters.buildType) {
+      return false;
+    }
+
     if (isEdgeBuild(build) && platformFilter !== 'All' && platformFilter) {
       if (build.Platform !== platformFilter) return false;
     }
@@ -479,6 +480,7 @@ function AppContent() {
                     : 'bg-white/50 dark:bg-gray-800/50 hover:bg-white/70 dark:hover:bg-gray-800/70 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
                 )}
                 onClick={() => handleTabChange(tab.id as TabType)}
+                aria-current={activeTab === tab.id ? 'page' : undefined}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -684,6 +686,14 @@ function AppContent() {
             </div>
           </Card>
         </motion.div>
+
+        {/* Channel quick-filter (Windows tabs) */}
+        {(activeTab === 'windows11' || activeTab === 'windows10' || activeTab === 'windowsServer') && (
+          <QuickFilterBar
+            activeChannel={filters.buildType ?? null}
+            onSelect={(ch) => setFilters({ ...filters, buildType: ch ?? undefined })}
+          />
+        )}
 
         {/* Error State */}
         {error && (

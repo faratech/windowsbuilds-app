@@ -1,40 +1,53 @@
 import React from 'react';
-import type { BuildType } from '../../types';
+import { cn } from '../../utils/cn';
+import type { ReleaseChannel } from '../../types';
+import { QUICK_FILTER_CHANNELS, channelMeta } from '../../config/releaseChannels';
 
 interface QuickFilterBarProps {
-  activeFilter: BuildType | 'latest' | 'reset' | null;
-  onFilterClick: (filter: BuildType | 'latest' | 'reset') => void;
+  activeChannel: ReleaseChannel | null;
+  onSelect: (channel: ReleaseChannel | null) => void;
 }
 
-export const QuickFilterBar: React.FC<QuickFilterBarProps> = ({
-  activeFilter,
-  onFilterClick
-}) => {
-  const filters: Array<{ value: BuildType | 'latest' | 'reset'; label: string; color: string }> = [
-    { value: 'release', label: 'Release Builds', color: 'bg-green-500' },
-    { value: 'insider', label: 'Insider Builds', color: 'bg-purple-500' },
-    { value: 'beta', label: 'Beta Channel', color: 'bg-blue-500' },
-    { value: 'dev', label: 'Dev Channel', color: 'bg-orange-500' },
-    { value: 'canary', label: 'Canary Channel', color: 'bg-red-500' },
-    { value: 'latest', label: 'Latest Only', color: 'bg-gray-500' },
-    { value: 'reset', label: 'Reset Filters', color: 'bg-gray-400' }
-  ];
+// Channel quick-filter chips, derived entirely from the shared releaseChannels
+// config (so Experimental / Release Preview appear automatically). `null` = all.
+export const QuickFilterBar: React.FC<QuickFilterBarProps> = ({ activeChannel, onSelect }) => {
+  const ring = 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-900';
 
   return (
-    <div className="flex flex-wrap gap-2 mb-4">
-      {filters.map(filter => (
-        <button
-          key={filter.value}
-          onClick={() => onFilterClick(filter.value)}
-          className={`px-3 py-1 rounded-md text-white text-sm font-medium transition-all ${
-            activeFilter === filter.value
-              ? `${filter.color} ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-900`
-              : `${filter.color} opacity-70 hover:opacity-100`
-          }`}
-        >
-          {filter.label}
-        </button>
-      ))}
+    <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Filter by release channel">
+      <button
+        type="button"
+        onClick={() => onSelect(null)}
+        aria-pressed={activeChannel === null}
+        className={cn(
+          'px-3 py-1 rounded-md text-sm font-medium transition-all bg-gray-500 text-white',
+          activeChannel === null ? ring : 'opacity-70 hover:opacity-100'
+        )}
+      >
+        All channels
+      </button>
+
+      {QUICK_FILTER_CHANNELS.map((ch) => {
+        const meta = channelMeta(ch);
+        const active = activeChannel === ch;
+        return (
+          <button
+            key={ch}
+            type="button"
+            onClick={() => onSelect(ch)}
+            aria-pressed={active}
+            aria-label={meta.aria}
+            className={cn(
+              'px-3 py-1 rounded-md text-sm font-medium transition-all',
+              meta.badgeClass,
+              active ? ring : 'opacity-70 hover:opacity-100'
+            )}
+          >
+            <span aria-hidden="true" className="mr-1">{meta.icon}</span>
+            {meta.label}
+          </button>
+        );
+      })}
     </div>
   );
 };
