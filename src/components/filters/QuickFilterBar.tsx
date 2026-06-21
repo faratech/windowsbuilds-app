@@ -20,7 +20,7 @@ export const QuickFilterBar: React.FC<QuickFilterBarProps> = ({ activeChannel, o
         onClick={() => onSelect(null)}
         aria-pressed={activeChannel === null}
         className={cn(
-          'px-3 py-1 rounded-md text-sm font-medium transition-all bg-gray-500 text-white',
+          'px-3 py-1 rounded-md text-sm font-medium transition-all bg-slate-200 dark:bg-gray-700 text-slate-800 dark:text-white',
           activeChannel === null ? ring : 'opacity-70 hover:opacity-100'
         )}
       >

@@ -77,7 +77,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
 };
 
 export const SkeletonCard: React.FC<{ className?: string }> = ({ className }) => (
-  <div className={cn('p-6 rounded-xl bg-white dark:bg-gray-800 shadow-md', className)}>
+  <div className={cn('p-6 rounded-lg bg-white dark:bg-gray-800 card-shadow', className)}>
     <div className="flex items-start gap-4">
       <Skeleton variant="circular" width={48} height={48} />
       <div className="flex-1">

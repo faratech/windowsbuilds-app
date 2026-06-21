@@ -442,10 +442,10 @@ function AppContent() {
       ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 transition-colors duration-500">
+    <div className="wf-app-shell min-h-screen transition-colors duration-300">
       <Header />
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="wf-frost max-w-[1200px] mx-auto my-6 rounded-xl px-4 sm:px-6 py-7">
         {/* Hero Section */}
         <motion.div
           className="mb-8 text-center"
@@ -453,7 +453,7 @@ function AppContent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-4xl font-bold mb-3 bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400 bg-clip-text text-transparent">
+          <h2 className="text-4xl font-bold mb-3 text-blue-600 dark:text-blue-400">
             Real-Time Windows Updates
           </h2>
           <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -473,16 +473,15 @@ function AppContent() {
               <motion.button
                 key={tab.id}
                 className={cn(
-                  'px-6 py-3 rounded-xl font-medium transition-all duration-300',
-                  'border-2 backdrop-blur-md',
+                  'px-6 py-3 rounded-lg font-semibold transition-colors duration-100',
+                  'border',
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-lg scale-105 border-transparent'
-                    : 'bg-white/50 dark:bg-gray-800/50 hover:bg-white/70 dark:hover:bg-gray-800/70 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                    ? 'bg-blue-500 text-white border-transparent card-shadow'
+                    : 'glass hover:border-blue-400 text-gray-700 dark:text-gray-200'
                 )}
                 onClick={() => handleTabChange(tab.id as TabType)}
                 aria-current={activeTab === tab.id ? 'page' : undefined}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.97 }}
               >
                 <span className="flex items-center gap-2">
                   <span className="text-xl">{tab.icon}</span>
@@ -529,7 +528,7 @@ function AppContent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <Card variant="glass" className="mb-6">
+          <Card variant="default" className="mb-6">
             <div className="p-6">
               <div className="flex flex-wrap gap-4 items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
@@ -702,7 +701,7 @@ function AppContent() {
             animate={{ opacity: 1, scale: 1 }}
             className="mb-6"
           >
-            <Card variant="glass" className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+            <Card variant="default" className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
               <div className="p-6 flex items-center gap-3">
                 <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -745,7 +744,7 @@ function AppContent() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
-              <Card variant="glass" className="text-center py-12">
+              <Card variant="default" className="text-center py-12">
                 <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -828,28 +827,28 @@ function AppContent() {
       )}
 
       {/* Attribution Footer */}
-      <footer className="mt-12 pb-6 text-center">
-        <div className="space-y-2">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+      <footer className="mt-10 pb-10 px-4">
+        <div className="wf-frost rounded-xl max-w-[1200px] mx-auto px-6 py-5 text-center space-y-2">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Build information courtesy of{' '}
             <a
               href="https://uupdump.net"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+              className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
             >
               UUPDump.net
             </a>
             {' and '}
             <span className="font-medium">Microsoft Corporation</span>
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Download official Windows directly from{' '}
             <a
               href="https://www.microsoft.com/software-download/windows11"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+              className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
             >
               Microsoft Windows 11
             </a>
@@ -858,10 +857,15 @@ function AppContent() {
               href="https://www.microsoft.com/software-download/windows10"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+              className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
             >
               Windows 10
             </a>
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 pt-2 max-w-2xl mx-auto leading-relaxed">
+            WindowsForum.com is an independent community website and is not affiliated with,
+            endorsed by, or sponsored by Microsoft Corporation. Windows is a trademark of the
+            Microsoft group of companies.
           </p>
         </div>
       </footer>

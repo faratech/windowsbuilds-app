@@ -19,37 +19,37 @@ export const Card: React.FC<CardProps> = ({
   ...props
 }) => {
   const variants = {
-    default: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
-    glass: 'bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border border-gray-200/50 dark:border-gray-700/50',
-    gradient: 'bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700',
-    outline: 'bg-transparent border-2 border-gray-300 dark:border-gray-600',
-    elevated: 'bg-white dark:bg-gray-800 shadow-xl dark:shadow-2xl',
+    default: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 card-shadow',
+    glass: 'glass',
+    gradient: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 card-shadow',
+    outline: 'bg-transparent border border-gray-300 dark:border-gray-600',
+    elevated: 'bg-white dark:bg-gray-800 card-shadow-lg',
   };
 
   const hoverEffects = hover
-    ? 'hover:shadow-lg dark:hover:shadow-2xl hover:scale-[1.02] hover:border-blue-400 dark:hover:border-blue-500 hover:bg-gray-50/50 dark:hover:bg-gray-700/50'
+    ? 'hover:shadow-[rgba(0,0,0,0.132)_0_6.4px_14.4px_0,rgba(0,0,0,0.11)_0_1.2px_3.6px_0] hover:border-blue-400 dark:hover:border-blue-500'
     : '';
 
   const pulseEffect = pulse ? 'animate-pulse' : '';
 
   const glowEffect = glow
-    ? 'shadow-[0_0_20px_rgba(59,130,246,0.5)] dark:shadow-[0_0_20px_rgba(96,165,250,0.3)]'
+    ? 'shadow-[0_0_0_3px_rgba(15,108,189,0.35)]'
     : '';
 
   return (
     <motion.div
       className={cn(
-        'rounded-xl p-6 transition-all duration-300',
+        'rounded-lg p-6 transition-colors duration-150',
         variants[variant],
         hoverEffects,
         pulseEffect,
         glowEffect,
         className
       )}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={hover ? { y: -4 } : undefined}
-      transition={{ duration: 0.3 }}
+      whileHover={hover ? { y: -2 } : undefined}
+      transition={{ duration: 0.25 }}
       {...props}
     >
       {children}

@@ -1,148 +1,148 @@
 export const themes = {
   light: {
     colors: {
-      // Primary colors
-      primary: '#3b82f6', // Blue 500
-      primaryHover: '#2563eb', // Blue 600
-      primaryLight: '#93c5fd', // Blue 300
-      primaryDark: '#1e40af', // Blue 800
+      // Primary — WindowsForum lead blue
+      primary: '#0f6cbd',
+      primaryHover: '#0c5aa0',
+      primaryLight: '#6fb0e4',
+      primaryDark: '#07426f',
 
-      // Secondary colors
-      secondary: '#8b5cf6', // Violet 500
-      secondaryHover: '#7c3aed', // Violet 600
-      secondaryLight: '#c4b5fd', // Violet 300
+      // Secondary — secondary brand blue
+      secondary: '#0078d4',
+      secondaryHover: '#0063b1',
+      secondaryLight: '#9bd3f7',
 
-      // Accent colors
-      accent: '#06b6d4', // Cyan 500
-      accentHover: '#0891b2', // Cyan 600
-      accentLight: '#67e8f9', // Cyan 300
+      // Accent — CTA / selected brand blue
+      accent: '#115ea3',
+      accentHover: '#0d4d88',
+      accentLight: '#a7cdee',
 
       // Background colors
-      background: '#ffffff',
-      backgroundSecondary: '#f9fafb', // Gray 50
-      backgroundTertiary: '#f3f4f6', // Gray 100
+      background: '#eff5f6',
+      backgroundSecondary: '#f8fafb',
+      backgroundTertiary: '#ebebeb',
       backgroundElevated: '#ffffff',
-      backgroundHover: '#f9fafb',
+      backgroundHover: '#f8fafb',
 
       // Surface colors
       surface: '#ffffff',
-      surfaceHover: '#f9fafb',
-      surfaceActive: '#f3f4f6',
-      surfaceBorder: '#e5e7eb', // Gray 300
+      surfaceHover: '#f8fafb',
+      surfaceActive: '#ebebeb',
+      surfaceBorder: '#ebebeb',
 
       // Text colors
-      text: '#111827', // Gray 900
-      textSecondary: '#6b7280', // Gray 500
-      textTertiary: '#9ca3af', // Gray 400
+      text: '#1a1b1b',
+      textSecondary: '#5f6060',
+      textTertiary: '#8a8b8b',
       textInverse: '#ffffff',
 
       // Status colors
-      success: '#10b981', // Emerald 500
-      successBg: '#d1fae5', // Emerald 100
-      warning: '#f59e0b', // Amber 500
-      warningBg: '#fed7aa', // Amber 200
-      error: '#ef4444', // Red 500
-      errorBg: '#fee2e2', // Red 100
-      info: '#3b82f6', // Blue 500
-      infoBg: '#dbeafe', // Blue 100
+      success: '#1f8a5b',
+      successBg: '#dcefe3',
+      warning: '#e65100',
+      warningBg: '#ffe2cc',
+      error: '#d9214e',
+      errorBg: '#fbd9e2',
+      info: '#0f6cbd',
+      infoBg: '#d3e6f6',
 
-      // Build type colors
-      canary: '#f59e0b', // Amber
-      dev: '#8b5cf6', // Violet
-      beta: '#3b82f6', // Blue
-      insider: '#10b981', // Emerald
-      release: '#06b6d4', // Cyan
-      stable: '#059669', // Emerald 600
+      // Build type colors (functional data-viz — kept distinguishable)
+      canary: '#d9214e',
+      dev: '#e65100',
+      beta: '#0f6cbd',
+      insider: '#5b2e91',
+      release: '#1f8a5b',
+      stable: '#1f8a5b',
 
-      // Special colors
-      glass: 'rgba(255, 255, 255, 0.8)',
-      glassLight: 'rgba(255, 255, 255, 0.4)',
-      glassDark: 'rgba(255, 255, 255, 0.95)',
+      // Special colors — frosted acrylic over the Windows wallpaper
+      glass: 'rgba(255, 255, 255, 0.62)',
+      glassLight: 'rgba(255, 255, 255, 0.42)',
+      glassDark: 'rgba(255, 255, 255, 0.85)',
       overlay: 'rgba(0, 0, 0, 0.5)',
-      shimmer: 'linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%)',
+      shimmer: 'linear-gradient(90deg, #f8fafb 0%, #ebebeb 50%, #f8fafb 100%)',
     },
     shadows: {
-      xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-      sm: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-      md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-      lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-      xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
-      '2xl': '0 25px 50px -12px rgb(0 0 0 / 0.25)',
-      inner: 'inset 0 2px 4px 0 rgb(0 0 0 / 0.05)',
-      glow: '0 0 20px rgba(59, 130, 246, 0.5)',
+      xs: 'rgba(0, 0, 0, 0.11) 0 0.3px 0.9px 0',
+      sm: 'rgba(0, 0, 0, 0.132) 0 1.6px 3.6px 0, rgba(0, 0, 0, 0.11) 0 0.3px 0.9px 0',
+      md: 'rgba(0, 0, 0, 0.132) 0 1.6px 3.6px 0, rgba(0, 0, 0, 0.11) 0 0.3px 0.9px 0',
+      lg: 'rgba(0, 0, 0, 0.132) 0 6.4px 14.4px 0, rgba(0, 0, 0, 0.11) 0 1.2px 3.6px 0',
+      xl: 'rgba(0, 0, 0, 0.18) 0 12.8px 28.8px 0, rgba(0, 0, 0, 0.12) 0 2.4px 7.2px 0',
+      '2xl': 'rgba(0, 0, 0, 0.22) 0 25.6px 57.6px 0, rgba(0, 0, 0, 0.16) 0 4.8px 14.4px 0',
+      inner: 'inset 0 1px 2px 0 rgb(0 0 0 / 0.06)',
+      glow: '0 0 0 3px rgba(15, 108, 189, 0.35)',
     },
   },
   dark: {
     colors: {
-      // Primary colors
-      primary: '#60a5fa', // Blue 400
-      primaryHover: '#93c5fd', // Blue 300
-      primaryLight: '#2563eb', // Blue 600
-      primaryDark: '#93c5fd', // Blue 300
+      // Primary — WindowsForum lead blue (slightly lifted for OLED)
+      primary: '#3a8fd8',
+      primaryHover: '#5ba6e6',
+      primaryLight: '#073e6e',
+      primaryDark: '#6fb0e4',
 
-      // Secondary colors
-      secondary: '#a78bfa', // Violet 400
-      secondaryHover: '#c4b5fd', // Violet 300
-      secondaryLight: '#7c3aed', // Violet 600
+      // Secondary
+      secondary: '#0078d4',
+      secondaryHover: '#2ea2e6',
+      secondaryLight: '#07426f',
 
-      // Accent colors
-      accent: '#22d3ee', // Cyan 400
-      accentHover: '#67e8f9', // Cyan 300
-      accentLight: '#0891b2', // Cyan 600
+      // Accent
+      accent: '#4ea3e6',
+      accentHover: '#6fb0e4',
+      accentLight: '#073e6e',
 
-      // Background colors
-      background: '#0f172a', // Slate 900
-      backgroundSecondary: '#1e293b', // Slate 800
-      backgroundTertiary: '#334155', // Slate 700
-      backgroundElevated: '#1e293b',
-      backgroundHover: '#334155',
+      // Background colors — true-OLED dark
+      background: '#1f2021',
+      backgroundSecondary: '#292929',
+      backgroundTertiary: '#383a3a',
+      backgroundElevated: '#292929',
+      backgroundHover: '#383a3a',
 
       // Surface colors
-      surface: '#1e293b',
-      surfaceHover: '#334155',
-      surfaceActive: '#475569',
-      surfaceBorder: '#475569', // Slate 600
+      surface: '#292929',
+      surfaceHover: '#383a3a',
+      surfaceActive: '#454747',
+      surfaceBorder: '#272729',
 
       // Text colors
-      text: '#f1f5f9', // Slate 100
-      textSecondary: '#cbd5e1', // Slate 300
-      textTertiary: '#94a3b8', // Slate 400
-      textInverse: '#0f172a',
+      text: '#ffffff',
+      textSecondary: '#cfcfcf',
+      textTertiary: '#9a9b9b',
+      textInverse: '#1a1b1b',
 
       // Status colors
-      success: '#34d399', // Emerald 400
-      successBg: '#064e3b', // Emerald 900
-      warning: '#fbbf24', // Amber 400
-      warningBg: '#78350f', // Amber 900
-      error: '#f87171', // Red 400
-      errorBg: '#7f1d1d', // Red 900
-      info: '#60a5fa', // Blue 400
-      infoBg: '#1e3a8a', // Blue 900
+      success: '#3fb985',
+      successBg: '#0c3a26',
+      warning: '#ff8a3d',
+      warningBg: '#4a2400',
+      error: '#f0567f',
+      errorBg: '#4a0f22',
+      info: '#3a8fd8',
+      infoBg: '#073e6e',
 
       // Build type colors
-      canary: '#fbbf24', // Amber 400
-      dev: '#a78bfa', // Violet 400
-      beta: '#60a5fa', // Blue 400
-      insider: '#34d399', // Emerald 400
-      release: '#22d3ee', // Cyan 400
-      stable: '#10b981', // Emerald 500
+      canary: '#f0567f',
+      dev: '#ff8a3d',
+      beta: '#3a8fd8',
+      insider: '#a98fd0',
+      release: '#3fb985',
+      stable: '#3fb985',
 
       // Special colors
-      glass: 'rgba(30, 41, 59, 0.8)',
-      glassLight: 'rgba(30, 41, 59, 0.4)',
-      glassDark: 'rgba(30, 41, 59, 0.95)',
+      glass: 'rgba(41, 41, 41, 0.72)',
+      glassLight: 'rgba(41, 41, 41, 0.45)',
+      glassDark: 'rgba(41, 41, 41, 0.92)',
       overlay: 'rgba(0, 0, 0, 0.7)',
-      shimmer: 'linear-gradient(90deg, #1e293b 0%, #334155 50%, #1e293b 100%)',
+      shimmer: 'linear-gradient(90deg, #292929 0%, #383a3a 50%, #292929 100%)',
     },
     shadows: {
-      xs: '0 1px 2px 0 rgb(0 0 0 / 0.2)',
-      sm: '0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3)',
-      md: '0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3)',
-      lg: '0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3)',
-      xl: '0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3)',
-      '2xl': '0 25px 50px -12px rgb(0 0 0 / 0.5)',
-      inner: 'inset 0 2px 4px 0 rgb(0 0 0 / 0.2)',
-      glow: '0 0 20px rgba(96, 165, 250, 0.3)',
+      xs: 'rgba(0, 0, 0, 0.3) 0 0.3px 0.9px 0',
+      sm: 'rgba(0, 0, 0, 0.4) 0 1.6px 3.6px 0, rgba(0, 0, 0, 0.3) 0 0.3px 0.9px 0',
+      md: 'rgba(0, 0, 0, 0.4) 0 1.6px 3.6px 0, rgba(0, 0, 0, 0.3) 0 0.3px 0.9px 0',
+      lg: 'rgba(0, 0, 0, 0.5) 0 6.4px 14.4px 0, rgba(0, 0, 0, 0.4) 0 1.2px 3.6px 0',
+      xl: 'rgba(0, 0, 0, 0.55) 0 12.8px 28.8px 0, rgba(0, 0, 0, 0.45) 0 2.4px 7.2px 0',
+      '2xl': 'rgba(0, 0, 0, 0.6) 0 25.6px 57.6px 0, rgba(0, 0, 0, 0.5) 0 4.8px 14.4px 0',
+      inner: 'inset 0 1px 2px 0 rgb(0 0 0 / 0.3)',
+      glow: '0 0 0 3px rgba(15, 108, 189, 0.45)',
     },
   },
 };
@@ -170,16 +170,16 @@ export const transitions = {
 };
 
 export const gradients = {
-  primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  secondary: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-  success: 'linear-gradient(135deg, #13e2da 0%, #30e795 100%)',
-  warning: 'linear-gradient(135deg, #f9d423 0%, #ff4e50 100%)',
-  info: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-  sunset: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  ocean: 'linear-gradient(135deg, #2e3192 0%, #1bffff 100%)',
-  forest: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-  fire: 'linear-gradient(135deg, #fc466b 0%, #3f5efb 100%)',
-  aurora: 'linear-gradient(135deg, #00c6fb 0%, #005bea 100%)',
+  primary: 'linear-gradient(135deg, #0f6cbd 0%, #07426f 100%)',
+  secondary: 'linear-gradient(135deg, #0078d4 0%, #0f6cbd 100%)',
+  success: 'linear-gradient(135deg, #1f8a5b 0%, #0c6b43 100%)',
+  warning: 'linear-gradient(135deg, #e65100 0%, #b03d00 100%)',
+  info: 'linear-gradient(135deg, #2f8ad6 0%, #0f6cbd 100%)',
+  sunset: 'linear-gradient(135deg, #0094e0 0%, #0f6cbd 100%)',
+  ocean: 'linear-gradient(135deg, #0078d4 0%, #07426f 100%)',
+  forest: 'linear-gradient(135deg, #1f8a5b 0%, #115e3f 100%)',
+  fire: 'linear-gradient(135deg, #d9214e 0%, #07426f 100%)',
+  aurora: 'linear-gradient(135deg, #0094e0 0%, #115ea3 100%)',
 };
 
 export const spacing = {
@@ -206,8 +206,8 @@ export const borderRadius = {
 
 export const typography = {
   fonts: {
-    sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-    mono: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
+    sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Segoe UI Variable", Roboto, "Helvetica Neue", Arial, "Inter", sans-serif',
+    mono: 'Consolas, "Lucida Console", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
   },
   sizes: {
     xs: '0.75rem',

@@ -88,14 +88,14 @@ export const Modal: React.FC<ModalProps> = ({
           >
             <motion.div
               className={cn(
-                'w-full bg-white dark:bg-gray-800 rounded-xl shadow-2xl pointer-events-auto',
+                'w-full bg-white dark:bg-gray-800 rounded-lg card-shadow-lg pointer-events-auto',
                 sizeClasses[size],
                 className
               )}
-              initial={{ scale: 0.9, y: 20 }}
+              initial={{ scale: 0.96, y: 16 }}
               animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              transition={{ type: 'spring', damping: 20 }}
+              exit={{ scale: 0.96, y: 16 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}

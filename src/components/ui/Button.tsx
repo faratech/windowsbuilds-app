@@ -30,19 +30,19 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variants = {
     primary:
-      'bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg dark:bg-blue-600 dark:hover:bg-blue-700',
+      'bg-blue-500 hover:bg-blue-600 active:bg-blue-900 text-white card-shadow',
     secondary:
-      'bg-violet-500 hover:bg-violet-600 text-white shadow-md hover:shadow-lg dark:bg-violet-600 dark:hover:bg-violet-700',
+      'bg-secondary hover:bg-blue-700 active:bg-blue-900 text-white card-shadow',
     accent:
-      'bg-cyan-500 hover:bg-cyan-600 text-white shadow-md hover:shadow-lg dark:bg-cyan-600 dark:hover:bg-cyan-700',
+      'bg-accent hover:bg-blue-700 active:bg-blue-900 text-white card-shadow',
     ghost:
       'bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300',
     outline:
-      'bg-transparent border-2 border-gray-300 dark:border-gray-600 hover:border-blue-500 dark:hover:border-blue-400 text-gray-700 dark:text-gray-300',
+      'bg-transparent border border-gray-300 dark:border-gray-600 hover:border-blue-500 hover:text-blue-600 dark:hover:border-blue-400 text-gray-700 dark:text-gray-300',
     gradient:
-      'bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-600 hover:to-violet-600 text-white shadow-md hover:shadow-lg',
+      'bg-blue-500 hover:bg-blue-600 active:bg-blue-900 text-white card-shadow',
     glass:
-      'bg-white/20 dark:bg-gray-800/20 backdrop-blur-md border border-white/30 dark:border-gray-700/30 text-gray-700 dark:text-gray-300 hover:bg-white/30 dark:hover:bg-gray-800/30',
+      'glass text-gray-800 dark:text-gray-100 hover:border-blue-500',
   };
 
   const sizes = {
@@ -70,8 +70,8 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <motion.button
       className={cn(
-        'relative overflow-hidden rounded-lg font-medium transition-all duration-200',
-        'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+        'relative overflow-hidden rounded-lg font-semibold transition-colors duration-100',
+        'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         variants[variant],
         sizes[size],
@@ -81,8 +81,7 @@ export const Button: React.FC<ButtonProps> = ({
       )}
       disabled={disabled || loading}
       onClick={handleClick}
-      whileTap={{ scale: 0.98 }}
-      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.985 }}
       {...props}
     >
       {/* Ripple effect */}

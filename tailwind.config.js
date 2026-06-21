@@ -8,19 +8,21 @@ export default {
   theme: {
     extend: {
       colors: {
+        // WindowsForum brand blues for product accents
         'windows': {
-          '11': '#0078D4',
-          '10': '#00BCF2',
-          'server': '#5E2E91',
-          'edge': '#0078D7',
+          '11': '#0f6cbd',
+          '10': '#0078d4',
+          'server': '#07426f',
+          'edge': '#0078d7',
         },
+        // Functional build-channel hues (kept distinguishable, slightly muted)
         'build': {
-          'insider': '#FFC107',
-          'beta': '#17A2B8',
-          'dev': '#28A745',
-          'canary': '#DC3545',
-          'stable': '#28A745',
-          'release': '#6F42C1',
+          'insider': '#5b2e91',
+          'beta': '#0f6cbd',
+          'dev': '#e65100',
+          'canary': '#d9214e',
+          'stable': '#1f8a5b',
+          'release': '#1f8a5b',
         }
       },
       animation: {

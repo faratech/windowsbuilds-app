@@ -17,46 +17,65 @@ interface ThemeProviderProps {
   children: React.ReactNode;
 }
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('themeMode');
-    return (saved as ThemeMode) || 'system';
-  });
+const normalizeThemeMode = (value: string | null | undefined): 'light' | 'dark' | null => {
+  if (value === 'light' || value === 'dark') {
+    return value;
+  }
 
-  const [actualMode, setActualMode] = useState<'light' | 'dark'>(() => {
-    // Initialize with XenForo's theme if available
-    const htmlElement = document.documentElement;
-    const colorScheme = htmlElement.getAttribute('data-color-scheme');
-    const variation = htmlElement.getAttribute('data-variation');
+  return null;
+};
 
-    if (colorScheme === 'dark' || variation === 'alternate') {
-      return 'dark';
-    } else if (colorScheme === 'light' || variation === 'default') {
-      return 'light';
+const readXfStyleVariationCookie = (): 'light' | 'dark' | null => {
+  const html = document.documentElement;
+  const cookiePrefix = html.getAttribute('data-cookie-prefix') || 'xf_';
+  const cookieNames = [`${cookiePrefix}style_variation`, 'style_variation'];
+
+  for (const cookieName of cookieNames) {
+    const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`));
+
+    if (!match) {
+      continue;
     }
 
-    // Fallback to system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const variation = decodeURIComponent(match[1]);
+    if (variation === 'alternate') return 'dark';
+    if (variation === 'default') return 'light';
+  }
+
+  return null;
+};
+
+const resolveActualMode = (): 'light' | 'dark' => {
+  const html = document.documentElement;
+
+  const colorScheme = normalizeThemeMode(html.getAttribute('data-color-scheme')?.toLowerCase());
+  if (colorScheme) return colorScheme;
+
+  const variation = html.getAttribute('data-variation')?.toLowerCase();
+  if (variation === 'alternate') return 'dark';
+  if (variation === 'default') return 'light';
+
+  const variationCookie = readXfStyleVariationCookie();
+  if (variationCookie) return variationCookie;
+
+  if (html.classList.contains('litemode')) return 'light';
+  if (html.classList.contains('light')) return 'light';
+  if (html.classList.contains('dark')) return 'dark';
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+};
+
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  const [themeMode, setThemeMode] = useState<ThemeMode>('system');
+
+  const [actualMode, setActualMode] = useState<'light' | 'dark'>(() => {
+    return resolveActualMode();
   });
 
   useEffect(() => {
     const updateActualMode = () => {
       if (themeMode === 'system') {
-        // First check XenForo's theme attributes
-        const htmlElement = document.documentElement;
-        const colorScheme = htmlElement.getAttribute('data-color-scheme');
-        const variation = htmlElement.getAttribute('data-variation');
-
-        // XenForo detection logic
-        if (colorScheme === 'dark' || variation === 'alternate') {
-          setActualMode('dark');
-        } else if (colorScheme === 'light' || variation === 'default') {
-          setActualMode('light');
-        } else {
-          // Fall back to system preference if XenForo attributes not found
-          const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          setActualMode(isDark ? 'dark' : 'light');
-        }
+        setActualMode(resolveActualMode());
       } else {
         setActualMode(themeMode as 'light' | 'dark');
       }
@@ -81,7 +100,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     mutationObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-variation', 'data-color-scheme']
+      attributeFilter: ['data-variation', 'data-color-scheme', 'class']
     });
 
     mediaQuery.addEventListener('change', handleChange);
@@ -95,6 +114,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     // Update document class and CSS variables
     const root = document.documentElement;
     const theme = themes[actualMode];
+
+    root.setAttribute('data-wf-theme', actualMode);
+    root.style.colorScheme = actualMode;
 
     if (actualMode === 'dark') {
       root.classList.add('dark');

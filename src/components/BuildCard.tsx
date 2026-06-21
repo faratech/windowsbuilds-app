@@ -30,24 +30,24 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
     switch (type) {
       case 'windows':
         return (
-          <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <div className="p-3 bg-blue-500 rounded-lg card-shadow">
+            <svg className="w-6 h-6 text-slate-700 dark:text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
             </svg>
           </div>
         );
       case 'edge':
         return (
-          <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl shadow-lg">
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <div className="p-3 bg-secondary rounded-lg card-shadow">
+            <svg className="w-6 h-6 text-slate-700 dark:text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M21.86 17.86q.14-.11.28-.24a7.07 7.07 0 0 0 1.64-3.16A6.91 6.91 0 0 0 24 12.5a11.87 11.87 0 0 0-1.46-5.85 12.31 12.31 0 0 0-4-4.24A11.64 11.64 0 0 0 12.5.5a12.63 12.63 0 0 0-6.21 1.58 11.45 11.45 0 0 0-4.38 4.32A12.58 12.58 0 0 0 .5 12.43a11.79 11.79 0 0 0 .87 4.59 11.93 11.93 0 0 0 2.45 3.84 11.46 11.46 0 0 0 3.73 2.53 12.48 12.48 0 0 0 4.74.88A12.36 12.36 0 0 0 17 23.49a11.79 11.79 0 0 0 4.11-2.36c.35-.31.57-.51.71-.65z"/>
             </svg>
           </div>
         );
       case 'office':
         return (
-          <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-lg">
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <div className="p-3 bg-blue-100 dark:bg-gray-500 rounded-lg card-shadow">
+            <svg className="w-6 h-6 text-blue-600 dark:text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M21.53 4.306v15.363q0 .807-.472 1.433-.472.627-1.253.85l-6.888 1.974q-.136.037-.29.055-.156.019-.293.019-.396 0-.73-.105-.336-.106-.656-.292l-4.505-2.544q-.248-.137-.391-.366-.143-.23-.143-.515 0-.434.304-.738.304-.305.739-.305.198 0 .396.062l4.047 2.278 6.912-1.978v-14.3l-6.912 1.978-5.14-2.894q-.099-.062-.233-.062-.248 0-.495.13-.248.13-.248.458v15.925q0 .434-.303.738-.303.304-.739.304-.435 0-.739-.304-.303-.304-.303-.738V4.964q0-.496.248-.86.248-.363.669-.494l6.986-2.002q.123-.037.248-.055.124-.018.248-.018.198 0 .396.062.198.061.347.155l4.553 2.544q.261.149.421.373.161.224.161.508zm-9.646 1.855v11.948l4.704 1.345V7.506z"/>
             </svg>
           </div>
@@ -107,10 +107,10 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
         delay: index * 0.1,
         ease: "easeInOut",
       }}
-      whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+      whileHover={{ y: -2, transition: { duration: 0.15 } }}
     >
       <Card
-        variant="glass"
+        variant="default"
         hover
         className="h-full cursor-pointer group"
         onClick={onClick}
