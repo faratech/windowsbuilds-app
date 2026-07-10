@@ -1,160 +1,189 @@
-import type { WindowsBuild, EdgeBuild, OfficeBuild, FilterOptions } from '../types';
+import type { WindowsBuild, EdgeBuild, OfficeBuild, BuildListResponse, TabType } from '../types';
+import { toQueryParams, type DateFilter } from '../utils/dateFilter';
 
 const API_BASE = (import.meta.env.VITE_API_BASE || '/api/builds').replace(/\/+$/, '');
-const CACHE_DURATION = 3600000; // 1 hour in milliseconds
 
-// Defensive: backends emit lowercase channel slugs, but normalize anyway so the
-// frontend never has to worry about casing drift between the Python/PHP sources.
-function normalizeBuilds<T extends { build_type?: string }>(builds: T[]): T[] {
-  for (const build of builds) {
-    if (typeof build.build_type === 'string') {
-      build.build_type = build.build_type.toLowerCase() as T['build_type'];
-    }
+/** A hung fetch used to hang forever; the UI would sit on skeletons indefinitely. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+export class ApiError extends Error {
+  // Declared explicitly rather than as a constructor parameter property:
+  // `erasableSyntaxOnly` (tsconfig.app.json) rejects syntax that emits code.
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
   }
-  return builds;
 }
 
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
+/**
+ * `AbortSignal.any` is recent enough that jsdom (and older Safari) may lack it.
+ * Compose manually rather than feature-gate the timeout away.
+ */
+function withTimeout(signal: AbortSignal | undefined, ms: number): {
+  signal: AbortSignal;
+  done: () => void;
+} {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new DOMException('Timeout', 'TimeoutError')), ms);
+
+  const abort = () => controller.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) abort();
+    else signal.addEventListener('abort', abort, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    done: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    },
+  };
 }
 
-class ApiService {
-  private cache: Map<string, CacheEntry<unknown>> = new Map();
+async function fetchJson<T>(
+  path: string,
+  params: URLSearchParams,
+  init: RequestInit = {},
+): Promise<T> {
+  const query = params.toString();
+  const { signal, done } = withTimeout(init.signal ?? undefined, REQUEST_TIMEOUT_MS);
 
-  private getCached<T>(key: string): T | null {
-    const entry = this.cache.get(key);
-    if (entry && Date.now() - entry.timestamp < CACHE_DURATION) {
-      return entry.data as T;
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}${query ? `?${query}` : ''}`, { ...init, signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new ApiError(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
     }
-    return null;
+    throw error;
+  } finally {
+    done();
   }
 
-  private setCache<T>(key: string, data: T): void {
-    this.cache.set(key, { data, timestamp: Date.now() });
-  }
-
-  private async fetchJson<T>(path: string, params: URLSearchParams, init?: RequestInit): Promise<T> {
-    const query = params.toString();
-    const response = await fetch(`${API_BASE}${path}${query ? `?${query}` : ''}`, init);
-
-    if (!response.ok) {
-      let detail = response.statusText;
-      try {
-        const body = await response.json();
-        detail = body.detail || body.message || detail;
-      } catch {
-        // Keep the status text if the backend returned a non-JSON error.
-      }
-      throw new Error(`${response.status} ${detail}`.trim());
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const body = await response.json();
+      detail = body.detail || body.message || body.error || detail;
+    } catch {
+      // Non-JSON error body; the status text is the best we have.
     }
-
-    return response.json() as Promise<T>;
+    throw new ApiError(`${response.status} ${detail}`.trim(), response.status);
   }
 
-  async fetchWindowsBuilds(filters?: FilterOptions): Promise<WindowsBuild[]> {
-    const cacheKey = `windows-builds-${JSON.stringify(filters || {})}`;
-    const cached = this.getCached<WindowsBuild[]>(cacheKey);
-    if (cached) return cached;
+  return response.json() as Promise<T>;
+}
 
-    const params = new URLSearchParams();
-    const version = filters?.tab === 'windows10' ? 'Windows 10' :
-                   filters?.tab === 'windowsServer' ? 'Windows Server' : 'Windows 11';
-    params.append('version', version);
-
-    if (filters?.selectedArch) params.append('arch', filters.selectedArch);
-    if (filters?.buildFilter) params.append('search', filters.buildFilter);
-    if (filters?.excludeInsider) params.append('exclude_insider', String(filters.excludeInsider));
-
-    const currentYearStr = new Date().getFullYear().toString();
-    const isCurrentYearOrAll = !filters?.selectedYear || filters?.selectedYear === 'All' || filters?.selectedYear === currentYearStr;
-
-    if (isCurrentYearOrAll && filters?.selectedMonth === 'Last 60 Days') {
-      params.append('use_rolling', 'true');
-      params.append('rolling_days', '60');
-    } else if (isCurrentYearOrAll && filters?.selectedMonth === 'Last 30 Days') {
-      params.append('use_rolling', 'true');
-      params.append('rolling_days', '30');
-    } else {
-      if (filters?.selectedMonth && filters.selectedMonth !== 'All' && filters.selectedMonth !== 'Last 60 Days' && filters.selectedMonth !== 'Last 30 Days') {
-        params.append('month', filters.selectedMonth);
-      }
-      if (filters?.selectedYear && filters.selectedYear !== 'All') {
-        params.append('year', filters.selectedYear);
-      }
-    }
-
-    if (filters?.buildType) params.append('build_type', filters.buildType);
-
-    const data = await this.fetchJson<{ builds?: WindowsBuild[] }>('/windows', params);
-    const builds = normalizeBuilds(data.builds || []);
-    this.setCache(cacheKey, builds);
-    return builds;
+/**
+ * The builds API answers upstream failures with **HTTP 200** and a body of
+ * `{"builds": [], "error": "Failed to fetch data"}` (see fastapi_app/routers/
+ * builds.py). Taking `data.builds || []` at face value rendered that outage as
+ * a cheerful "No builds found" empty state. Treat the error field as fatal and
+ * insist the payload is actually shaped like a build list.
+ */
+function unwrapBuildList<T>(payload: unknown, endpoint: string): T[] {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new ApiError(`Malformed response from ${endpoint}`);
   }
 
-  async fetchEdgeBuilds(filters?: FilterOptions): Promise<EdgeBuild[]> {
-    const cacheKey = `edge-builds-${JSON.stringify(filters || {})}`;
-    const cached = this.getCached<EdgeBuild[]>(cacheKey);
-    if (cached) return cached;
+  const body = payload as Partial<BuildListResponse<T>> & { error?: unknown };
 
-    const params = new URLSearchParams();
-    if (filters?.excludeInsider) params.append('exclude_insider', 'true');
-    if (filters?.buildFilter) params.append('search', filters.buildFilter);
-
-    const data = await this.fetchJson<{ builds?: EdgeBuild[] }>('/edge', params);
-    const builds = normalizeBuilds(data.builds || []);
-    this.setCache(cacheKey, builds);
-    return builds;
+  if (typeof body.error === 'string' && body.error) {
+    throw new ApiError(body.error);
   }
 
-  async fetchOfficeBuilds(filters?: FilterOptions): Promise<OfficeBuild[]> {
-    const cacheKey = `office-builds-${JSON.stringify(filters || {})}`;
-    const cached = this.getCached<OfficeBuild[]>(cacheKey);
-    if (cached) return cached;
-
-    const params = new URLSearchParams();
-    if (filters?.buildFilter) params.append('search', filters.buildFilter);
-
-    const data = await this.fetchJson<{ builds?: OfficeBuild[] }>('/office365', params);
-    const builds = normalizeBuilds(data.builds || []);
-    this.setCache(cacheKey, builds);
-    return builds;
+  if (!Array.isArray(body.builds)) {
+    throw new ApiError(`Malformed response from ${endpoint}: missing "builds" array`);
   }
 
-  async fetchBuildSummary(uuid: string, title: string, buildType: string = 'windows'): Promise<string> {
-    const params = new URLSearchParams();
-    params.append('uuid', uuid);
-    params.append('title', title);
-    params.append('build_type', buildType);
+  return body.builds;
+}
 
-    const data = await this.fetchJson<{ summary?: string }>('/summary', params, {
-      method: 'POST',
-      body: '',
+/**
+ * Backends emit lowercase channel slugs, but casing has drifted between the
+ * Python and PHP sources before. Normalise onto a copy — mutating the parsed
+ * response in place would corrupt any object React Query has already cached.
+ */
+function normalizeChannels<T extends { build_type?: string }>(builds: T[]): T[] {
+  return builds.map((build) =>
+    typeof build.build_type === 'string'
+      ? { ...build, build_type: build.build_type.toLowerCase() as T['build_type'] }
+      : build,
+  );
+}
+
+const WINDOWS_VERSION: Record<string, string> = {
+  windows10: 'Windows 10',
+  windowsServer: 'Windows Server',
+  windows11: 'Windows 11',
+};
+
+/** Server-side parameters only. Sort order, channel chips, search, platform and
+ *  Office-channel selection are all applied client-side and must never widen a
+ *  query key, or every local filter click becomes a network round-trip. */
+export interface WindowsQuery {
+  tab: TabType;
+  arch: string;
+  excludeInsider: boolean;
+  date: DateFilter;
+}
+
+export interface EdgeQuery {
+  excludeInsider: boolean;
+}
+
+export const apiService = {
+  async fetchWindowsBuilds(query: WindowsQuery, signal?: AbortSignal): Promise<WindowsBuild[]> {
+    const params = new URLSearchParams({
+      version: WINDOWS_VERSION[query.tab] ?? 'Windows 11',
+      arch: query.arch,
     });
-    return data.summary || 'No summary available';
-  }
+    if (query.excludeInsider) params.set('exclude_insider', 'true');
+    for (const [key, value] of Object.entries(toQueryParams(query.date))) {
+      params.set(key, value);
+    }
 
-  async fetchAllBuilds(filters?: FilterOptions): Promise<{
-    windows: WindowsBuild[];
-    edge: EdgeBuild[];
-    office: OfficeBuild[];
-  }> {
+    // NB: no `build_type` param. `/api/builds/windows` does not accept one —
+    // FastAPI silently ignored it while it fragmented the client cache key.
+
+    const payload = await fetchJson<unknown>('/windows', params, { signal });
+    return normalizeChannels(unwrapBuildList<WindowsBuild>(payload, '/windows'));
+  },
+
+  async fetchEdgeBuilds(query: EdgeQuery, signal?: AbortSignal): Promise<EdgeBuild[]> {
     const params = new URLSearchParams();
-    if (filters?.excludeInsider) params.append('exclude_insider', String(filters.excludeInsider));
-    params.append('limit', '100');
+    if (query.excludeInsider) params.set('exclude_insider', 'true');
 
-    const data = await this.fetchJson<{
-      windows?: WindowsBuild[];
-      edge?: EdgeBuild[];
-      office365?: OfficeBuild[];
-    }>('/all', params);
-    return {
-      windows: data.windows || [],
-      edge: data.edge || [],
-      office: data.office365 || []
-    };
-  }
+    const payload = await fetchJson<unknown>('/edge', params, { signal });
+    return normalizeChannels(unwrapBuildList<EdgeBuild>(payload, '/edge'));
+  },
 
-}
+  async fetchOfficeBuilds(signal?: AbortSignal): Promise<OfficeBuild[]> {
+    const payload = await fetchJson<unknown>('/office365', new URLSearchParams(), { signal });
+    return normalizeChannels(unwrapBuildList<OfficeBuild>(payload, '/office365'));
+  },
 
-export const apiService = new ApiService();
+  async fetchBuildSummary(
+    uuid: string,
+    title: string,
+    buildType: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const params = new URLSearchParams({ uuid, title, build_type: buildType });
+    const payload = await fetchJson<{ summary?: unknown; error?: unknown }>(
+      '/summary',
+      params,
+      { method: 'POST', signal },
+    );
+
+    if (typeof payload.error === 'string' && payload.error) throw new ApiError(payload.error);
+    if (typeof payload.summary !== 'string' || !payload.summary) {
+      throw new ApiError('No summary available');
+    }
+    return payload.summary;
+  },
+};

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      // The builds API is mounted under /api/builds on the FastAPI service.
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
@@ -30,5 +31,12 @@ export default defineConfig({
         }
       }
     }
+  },
+  test: {
+    environment: 'jsdom',
+    globals: false,
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
+    restoreMocks: true,
   }
 })

@@ -265,3 +265,17 @@
   transition-timing-function: ease-out;
   transition-duration: 120ms;
 }
+
+/* Framer Motion honours this via <MotionConfig reducedMotion="user">; the CSS
+   animations and transitions above need saying separately. Content stays
+   visible — nothing here hides an element that only an animation would reveal. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

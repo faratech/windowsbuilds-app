@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Header } from './components/layout/Header';
 import { BuildCard } from './components/BuildCard';
@@ -12,121 +12,49 @@ import { Card } from './components/ui/Card';
 import { SkeletonBuildItem } from './components/ui/Skeleton';
 import { Badge } from './components/ui/Badge';
 import { cn } from './utils/cn';
-import type { TabType, FilterOptions, WindowsBuild, EdgeBuild, OfficeBuild } from './types';
-import { apiService } from './services/api';
+import type { TabType, FilterOptions, SortBy } from './types';
 import { QuickFilterBar } from './components/filters/QuickFilterBar';
 import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from './utils/typeGuards';
+import { buildKey, buildSearchText, buildTime, comparableVersion, buildDateValue, compareVersions } from './utils/buildRecord';
+import { ALL_DATES, MONTH_OPTIONS, fromControls, isRollingMonth, matchesDateFilter } from './utils/dateFilter';
+import { downloadTarget, OFFICE_DOWNLOAD_CENTER } from './utils/downloads';
+import { buildsQueryDefaults, isWindowsTab, useBuilds } from './hooks/useBuilds';
 
-const getBuildKey = (build: BuildRecord, index: number) => {
-  if (isWindowsBuild(build)) return build.uuid;
-  if (isEdgeBuild(build)) return build.ReleaseId || `${build.Product}-${build.Version}-${build.Platform}-${build.Architecture}`;
-  return `${build.channel}-${build.version}-${build.build || build.title || index}`;
-};
-
-const getSearchText = (build: BuildRecord) => {
-  if (isWindowsBuild(build)) {
-    return [build.title, build.build_number, build.build, build.arch, build.build_type].filter(Boolean).join(' ');
-  }
-  if (isEdgeBuild(build)) {
-    return [build.Product, build.Version, build.Platform, build.Architecture].filter(Boolean).join(' ');
-  }
-  return [build.title, build.name, build.build, build.version, build.channel].filter(Boolean).join(' ');
-};
-
-const getComparableVersion = (build: BuildRecord) => {
-  if (isWindowsBuild(build)) return build.build_number || build.build || '';
-  if (isEdgeBuild(build)) return build.Version || '';
-  return build.build || build.version || '';
-};
-
-const getBuildTime = (build: BuildRecord) => {
-  const rawDate = isWindowsBuild(build)
-    ? build.created_timestamp || build.created
-    : isEdgeBuild(build)
-      ? build.PublishedTime
-      : build.releaseDate;
-  if (!rawDate) return 0;
-  const timestamp = typeof rawDate === 'number' ? rawDate * 1000 : new Date(rawDate).getTime();
-  return Number.isFinite(timestamp) ? timestamp : 0;
-};
-
-const compareVersions = (a: string, b: string) => {
-  const aParts = a.split(/[^\d]+/).filter(Boolean).map(Number);
-  const bParts = b.split(/[^\d]+/).filter(Boolean).map(Number);
-  const length = Math.max(aParts.length, bParts.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const diff = (aParts[index] || 0) - (bParts[index] || 0);
-    if (diff !== 0) return diff;
-  }
-
-  return a.localeCompare(b);
-};
-
-const shouldKeepByDate = (build: BuildRecord, filters: FilterOptions) => {
-  if (isWindowsBuild(build)) return true;
-  const buildTime = getBuildTime(build);
-  if (!buildTime) return true;
-
-  const currentYearStr = new Date().getFullYear().toString();
-  const isCurrentYearOrAll = !filters.selectedYear || filters.selectedYear === 'All' || filters.selectedYear === currentYearStr;
-
-  if (isCurrentYearOrAll && (filters.selectedMonth === 'Last 60 Days' || filters.selectedMonth === 'Last 30 Days')) {
-    const days = filters.selectedMonth === 'Last 60 Days' ? 60 : 30;
-    return Date.now() - buildTime <= days * 24 * 60 * 60 * 1000;
-  }
-
-  const date = new Date(buildTime);
-  if (filters.selectedMonth && filters.selectedMonth !== 'All' && filters.selectedMonth !== 'Last 60 Days' && filters.selectedMonth !== 'Last 30 Days') {
-    const monthName = date.toLocaleString('en-US', { month: 'long' });
-    if (monthName !== filters.selectedMonth) return false;
-  }
-
-  if (filters.selectedYear && filters.selectedYear !== 'All') {
-    if (String(date.getFullYear()) !== filters.selectedYear) return false;
-  }
-
-  return true;
-};
-
-const getSortBy = (sortBy: FilterOptions['sortBy'], activeTab: TabType): NonNullable<FilterOptions['sortBy']> => {
+const getSortBy = (sortBy: SortBy, activeTab: TabType): SortBy => {
   if (activeTab === 'edge') {
     return sortBy === 'date-desc' || sortBy === 'date-asc' || sortBy === 'version-desc' || sortBy === 'version-asc'
       ? sortBy
       : 'version-desc';
   }
 
-  return sortBy === 'version-desc' || sortBy === 'version-asc'
-    ? 'build-desc'
-    : sortBy || 'build-desc';
+  return sortBy === 'version-desc' || sortBy === 'version-asc' ? 'build-desc' : sortBy;
 };
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 10, // 10 minutes
-    },
-  },
-});
+/** Exported so tests can reset the cache between renders. */
+export const queryClient = new QueryClient({ defaultOptions: { queries: buildsQueryDefaults } });
+
+const TAB_PATHS: Record<TabType, string> = {
+  windows11: '/builds/windows11',
+  windows10: '/builds/windows10',
+  windowsServer: '/builds/windowsserver',
+  edge: '/builds/edge',
+  office365: '/builds/office365',
+};
+
+const SELECT_CLASS =
+  'px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 ' +
+  'text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ' +
+  'disabled:opacity-50 disabled:cursor-not-allowed';
 
 function AppContent() {
-  // Get initial tab from URL path or data attribute
   const getInitialTab = useCallback((): TabType => {
-    // First check data attribute from XenForo
     const rootElement = document.getElementById('windows-builds-root');
-    if (rootElement) {
-      const section = rootElement.dataset.section;
-      if (section) {
-        // Map windowsserver to windowsServer for consistency
-        if (section === 'windowsserver') return 'windowsServer';
-        if (['windows11', 'windows10', 'edge', 'office365'].includes(section)) {
-          return section as TabType;
-        }
-      }
+    const section = rootElement?.dataset.section;
+    if (section) {
+      if (section === 'windowsserver') return 'windowsServer';
+      if (['windows11', 'windows10', 'edge', 'office365'].includes(section)) return section as TabType;
     }
 
-    // Fallback to URL path
     const path = window.location.pathname;
     if (path.includes('/windows11')) return 'windows11';
     if (path.includes('/windows10')) return 'windows10';
@@ -134,7 +62,6 @@ function AppContent() {
     if (path.includes('/edge')) return 'edge';
     if (path.includes('/office365')) return 'office365';
 
-    // Check URL hash for backwards compatibility
     const hash = window.location.hash.slice(1);
     if (hash && ['windows11', 'windows10', 'windowsServer', 'edge', 'office365'].includes(hash)) {
       return hash as TabType;
@@ -143,291 +70,216 @@ function AppContent() {
     return 'windows11';
   }, []);
 
-  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab());
+  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
   const [filters, setFilters] = useState<FilterOptions>({
     selectedMonth: 'Last 60 Days',
-    selectedYear: new Date().getFullYear().toString(),
+    selectedYear: ALL_DATES,
     selectedArch: 'amd64',
     excludeInsider: false,
-    buildFilter: '',
-    sortBy: 'build-desc'
+    sortBy: 'build-desc',
   });
   const [platformFilter, setPlatformFilter] = useState('Windows');
   const [downloadFilter, setDownloadFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [windowsBuilds, setWindowsBuilds] = useState<WindowsBuild[]>([]);
-  const [edgeBuilds, setEdgeBuilds] = useState<EdgeBuild[]>([]);
-  const [officeBuilds, setOfficeBuilds] = useState<OfficeBuild[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const requestIdRef = useRef(0);
+  const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
 
-  // Update document metadata based on active tab
+  const rollingDates = isRollingMonth(filters.selectedMonth);
+  const dateFilter = useMemo(
+    () => fromControls(filters.selectedMonth, filters.selectedYear),
+    [filters.selectedMonth, filters.selectedYear],
+  );
+
+  const query = useBuilds({
+    tab: activeTab,
+    arch: filters.selectedArch,
+    excludeInsider: filters.excludeInsider,
+    date: dateFilter,
+  });
+
+  const builds = useMemo(() => query.data ?? [], [query.data]);
+
   const updatePageMetadata = useCallback((tab: TabType) => {
     const metaData = {
       windows11: {
         title: 'Windows 11 Builds Tracker - 25H2, Insider & Release Channels',
         description: 'Track every Windows 11 build across the Experimental (formerly Dev), Beta, Release Preview and retail channels, including 25H2 (26200) and 24H2 (26100). Version history, download links, and AI summaries.',
-        keywords: 'Windows 11 builds, Windows 11 25H2, Windows 11 24H2, Windows 11 Experimental, Windows 11 Release Preview, Windows 11 Insider, Windows 11 Canary, Windows 11 enablement package'
+        keywords: 'Windows 11 builds, Windows 11 25H2, Windows 11 24H2, Windows 11 Experimental, Windows 11 Release Preview, Windows 11 Insider, Windows 11 Canary, Windows 11 enablement package',
       },
       windows10: {
         title: 'Windows 10 Builds Tracker - 22H2 & End of Support',
         description: 'Windows 10 reached end of support on October 14, 2025 (final build 19045.6456). Track the Windows 10 22H2 servicing history and Extended Security Updates (ESU).',
-        keywords: 'Windows 10 builds, Windows 10 22H2, Windows 10 end of support, Windows 10 ESU, Windows 10 19045, Windows 10 EOL'
+        keywords: 'Windows 10 builds, Windows 10 22H2, Windows 10 end of support, Windows 10 ESU, Windows 10 19045, Windows 10 EOL',
       },
       windowsServer: {
         title: 'Windows Server Builds - Server 2025, 2022 & LTSC',
         description: 'Track Windows Server builds across LTSC and the Annual Channel, including Windows Server 2025 (26100) and Server 2022. Monitor cumulative updates, hotpatch baselines, and Insider previews.',
-        keywords: 'Windows Server builds, Windows Server 2025, Windows Server 2022, Server LTSC, Server Annual Channel, Server hotpatch, Server Insider'
+        keywords: 'Windows Server builds, Windows Server 2025, Windows Server 2022, Server LTSC, Server Annual Channel, Server hotpatch, Server Insider',
       },
       edge: {
         title: 'Microsoft Edge Builds - Stable, Beta, Dev & Canary Versions',
         description: 'Track Microsoft Edge browser builds across all channels. Monitor Stable, Beta, Dev, and Canary releases with download links for all platforms.',
-        keywords: 'Microsoft Edge builds, Edge browser versions, Edge Canary, Edge Dev, Edge Beta, Edge stable, Edge downloads'
+        keywords: 'Microsoft Edge builds, Edge browser versions, Edge Canary, Edge Dev, Edge Beta, Edge stable, Edge downloads',
       },
       office365: {
         title: 'Office 365 & Microsoft 365 Builds - Updates Tracker',
         description: 'Monitor Office 365 and Microsoft 365 builds. Track updates for Current Channel, Monthly Enterprise, Semi-Annual channels with version history.',
-        keywords: 'Office 365 builds, Microsoft 365 updates, Office updates, Office version history, Office Current Channel'
-      }
+        keywords: 'Office 365 builds, Microsoft 365 updates, Office updates, Office version history, Office Current Channel',
+      },
     };
 
     const data = metaData[tab];
+    document.title = `${data.title} | WindowsForum`;
 
-    // Update title
-    document.title = data.title + ' | WindowsForum';
+    const upsertMeta = (selector: string, create: () => HTMLElement, content: string) => {
+      let element = document.querySelector(selector);
+      if (!element) {
+        element = create();
+        document.head.appendChild(element);
+      }
+      element.setAttribute('content', content);
+    };
 
-    // Update meta description
-    let metaDesc = document.querySelector('meta[name="description"]');
-    if (!metaDesc) {
-      metaDesc = document.createElement('meta');
-      metaDesc.setAttribute('name', 'description');
-      document.head.appendChild(metaDesc);
-    }
-    metaDesc.setAttribute('content', data.description);
+    upsertMeta('meta[name="description"]', () => {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', 'description');
+      return meta;
+    }, data.description);
 
-    // Update keywords
-    let metaKeywords = document.querySelector('meta[name="keywords"]');
-    if (!metaKeywords) {
-      metaKeywords = document.createElement('meta');
-      metaKeywords.setAttribute('name', 'keywords');
-      document.head.appendChild(metaKeywords);
-    }
-    metaKeywords.setAttribute('content', data.keywords);
+    upsertMeta('meta[name="keywords"]', () => {
+      const meta = document.createElement('meta');
+      meta.setAttribute('name', 'keywords');
+      return meta;
+    }, data.keywords);
 
-    // Update Open Graph tags
-    let ogTitle = document.querySelector('meta[property="og:title"]');
-    if (!ogTitle) {
-      ogTitle = document.createElement('meta');
-      ogTitle.setAttribute('property', 'og:title');
-      document.head.appendChild(ogTitle);
-    }
-    ogTitle.setAttribute('content', data.title);
+    upsertMeta('meta[property="og:title"]', () => {
+      const meta = document.createElement('meta');
+      meta.setAttribute('property', 'og:title');
+      return meta;
+    }, data.title);
 
-    let ogDesc = document.querySelector('meta[property="og:description"]');
-    if (!ogDesc) {
-      ogDesc = document.createElement('meta');
-      ogDesc.setAttribute('property', 'og:description');
-      document.head.appendChild(ogDesc);
-    }
-    ogDesc.setAttribute('content', data.description);
+    upsertMeta('meta[property="og:description"]', () => {
+      const meta = document.createElement('meta');
+      meta.setAttribute('property', 'og:description');
+      return meta;
+    }, data.description);
 
-    // Update canonical URL
     let canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
       canonical = document.createElement('link');
       canonical.setAttribute('rel', 'canonical');
       document.head.appendChild(canonical);
     }
-    const baseUrl = 'https://windowsforum.com/builds';
-    const tabPaths = {
-      windows11: '/windows11',
-      windows10: '/windows10',
-      windowsServer: '/windowsserver',
-      edge: '/edge',
-      office365: '/office365'
-    };
-    canonical.setAttribute('href', baseUrl + tabPaths[tab]);
+    canonical.setAttribute('href', `https://windowsforum.com${TAB_PATHS[tab]}`);
 
     // JSON-LD is set server-side in templates.xml with the full WebApplication +
     // ItemList payload. Don't overwrite it here — the client-only blob lacks
-    // mainEntity.ItemList and would downgrade the rendered DOM. SPA tab changes
-    // don't trigger a fresh crawl, so the SSR JSON-LD remaining static is fine.
+    // mainEntity.ItemList and would downgrade the rendered DOM.
   }, []);
 
-  // Handle tab changes and update URL
   const handleTabChange = useCallback((newTab: TabType) => {
+    // Re-clicking the current tab used to push a duplicate history entry, so
+    // "Back" appeared to do nothing until you pressed it as many times as you
+    // had clicked.
+    if (newTab === activeTab) return;
+
+    // A modal opened on the previous tab would otherwise stay mounted over the
+    // new one, describing a build that is no longer in the list.
+    setSelectedBuild(null);
     setActiveTab(newTab);
-    updatePageMetadata(newTab);
+    window.history.pushState({ tab: newTab }, '', TAB_PATHS[newTab]);
+  }, [activeTab]);
 
-    // Update URL without page reload
-    const tabPaths = {
-      windows11: '/builds/windows11',
-      windows10: '/builds/windows10',
-      windowsServer: '/builds/windowsserver',
-      edge: '/builds/edge',
-      office365: '/builds/office365'
-    };
+  useEffect(() => {
+    updatePageMetadata(activeTab);
+  }, [activeTab, updatePageMetadata]);
 
-    const newPath = tabPaths[newTab];
-    if (window.history && window.history.pushState) {
-      window.history.pushState({ tab: newTab }, '', newPath);
-    }
-  }, [updatePageMetadata]);
-
-  // Handle browser back/forward navigation
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      if (event.state && event.state.tab) {
-        setActiveTab(event.state.tab);
-        updatePageMetadata(event.state.tab);
-      } else {
-        const tab = getInitialTab();
-        setActiveTab(tab);
-        updatePageMetadata(tab);
-      }
+      setSelectedBuild(null);
+      setActiveTab(event.state?.tab ?? getInitialTab());
     };
 
     window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [getInitialTab]);
 
-    // Set initial metadata
-    updatePageMetadata(activeTab);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [activeTab, getInitialTab, updatePageMetadata]);
-
-  const loadBuilds = useCallback(async () => {
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-    setLoading(true);
-    setError(null);
-
-    try {
-      switch (activeTab) {
-        case 'windows11':
-        case 'windows10':
-        case 'windowsServer': {
-          const windows = await apiService.fetchWindowsBuilds({ ...filters, tab: activeTab });
-          if (requestId !== requestIdRef.current) return;
-          setWindowsBuilds(windows);
-          break;
-        }
-        case 'edge': {
-          const edge = await apiService.fetchEdgeBuilds({ ...filters, tab: activeTab });
-          if (requestId !== requestIdRef.current) return;
-          setEdgeBuilds(edge);
-          break;
-        }
-        case 'office365': {
-          const office = await apiService.fetchOfficeBuilds({ ...filters, tab: activeTab });
-          if (requestId !== requestIdRef.current) return;
-          setOfficeBuilds(office);
-          break;
-        }
-      }
-      setLastUpdated(new Date());
-    } catch (err) {
-      if (requestId === requestIdRef.current) {
-        setError(err instanceof Error ? err.message : 'Failed to load builds');
-      }
-    } finally {
-      if (requestId === requestIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [activeTab, filters]);
-
-  useEffect(() => {
-    loadBuilds();
-  }, [loadBuilds]);
-
-  // Auto-refresh every 60 minutes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadBuilds();
-    }, 60 * 60 * 1000); // 60 minutes in milliseconds
-
-    return () => clearInterval(interval);
-  }, [loadBuilds]);
-
-  const getCurrentBuilds = (): BuildRecord[] => {
-    if (activeTab === 'edge') return edgeBuilds;
-    if (activeTab === 'office365') return officeBuilds;
-    return windowsBuilds;
-  };
-
-  // Determine which filter to show based on active tab
   const isEdgeTab = activeTab === 'edge';
+  const isOfficeTab = activeTab === 'office365';
   const activeSortBy = getSortBy(filters.sortBy, activeTab);
 
-  const filteredBuilds = getCurrentBuilds().filter(build => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      if (!getSearchText(build).toLowerCase().includes(query)) return false;
-    }
+  const officeChannels = useMemo(
+    () => Array.from(new Set(builds.filter(isOfficeBuild).map((b) => b.channel).filter(Boolean))).sort(),
+    [builds],
+  );
 
-    // Channel quick-filter (Experimental / Beta / Release Preview / ...).
-    if (filters.buildType && build.build_type && build.build_type !== filters.buildType) {
-      return false;
-    }
+  const filteredBuilds = useMemo(() => {
+    const now = Date.now();
+    const needle = searchQuery.trim().toLowerCase();
 
-    if (isEdgeBuild(build) && platformFilter !== 'All' && platformFilter) {
-      if (build.Platform !== platformFilter) return false;
-    }
+    const matches = builds.filter((build) => {
+      if (needle && !buildSearchText(build).toLowerCase().includes(needle)) return false;
 
-    if (isOfficeBuild(build) && filters.officeChannel && filters.officeChannel !== 'All') {
-      if (build.channel !== filters.officeChannel) return false;
-    }
+      // The channel chips are a *Windows* control — the QuickFilterBar is not
+      // even rendered on the Edge/Office tabs. Applying `buildType` to every
+      // record meant a channel picked on Windows 11 silently survived the tab
+      // switch and hid most Edge/Office builds with no visible filter to clear.
+      if (filters.buildType && isWindowsBuild(build) && build.build_type !== filters.buildType) {
+        return false;
+      }
 
-    if (!shouldKeepByDate(build, filters)) return false;
+      if (isEdgeBuild(build) && platformFilter !== 'All' && build.Platform !== platformFilter) {
+        return false;
+      }
 
-    if (isEdgeBuild(build) && downloadFilter !== 'All') {
-      const hasDownloads = Boolean(build.Artifacts?.length);
-      if (downloadFilter === 'Download Available' && !hasDownloads) return false;
-      if (downloadFilter === 'No Downloads' && hasDownloads) return false;
-    }
+      if (isOfficeBuild(build) && filters.officeChannel && filters.officeChannel !== 'All'
+        && build.channel !== filters.officeChannel) {
+        return false;
+      }
 
-    return true;
-  }).sort((a, b) => {
-    switch (activeSortBy) {
-      case 'date-desc':
-        return getBuildTime(b) - getBuildTime(a);
-      case 'date-asc':
-        return getBuildTime(a) - getBuildTime(b);
-      case 'version-desc':
-      case 'build-desc':
-        return compareVersions(getComparableVersion(b), getComparableVersion(a));
-      case 'version-asc':
-      case 'build-asc':
-        return compareVersions(getComparableVersion(a), getComparableVersion(b));
-      default:
-        return 0;
-    }
-  });
+      // Windows dates are filtered server-side by the query parameters; Edge and
+      // Office endpoints accept no date params, so they are narrowed here.
+      if (!isWindowsBuild(build) && !matchesDateFilter(buildDateValue(build), dateFilter, now)) {
+        return false;
+      }
+
+      if (isEdgeBuild(build) && downloadFilter !== 'All') {
+        const available = downloadTarget(build) !== null;
+        if (downloadFilter === 'Download Available' && !available) return false;
+        if (downloadFilter === 'No Downloads' && available) return false;
+      }
+
+      return true;
+    });
+
+    return matches.sort((a, b) => {
+      switch (activeSortBy) {
+        case 'date-desc': return buildTime(b) - buildTime(a);
+        case 'date-asc': return buildTime(a) - buildTime(b);
+        case 'version-desc':
+        case 'build-desc': return compareVersions(comparableVersion(b), comparableVersion(a));
+        case 'version-asc':
+        case 'build-asc': return compareVersions(comparableVersion(a), comparableVersion(b));
+        default: return 0;
+      }
+    });
+  }, [builds, searchQuery, filters.buildType, filters.officeChannel, platformFilter, downloadFilter, dateFilter, activeSortBy]);
 
   const tabs = [
-    { id: 'windows11', label: 'Windows 11', icon: '🪟', color: 'from-blue-500 to-cyan-500' },
-    { id: 'windows10', label: 'Windows 10', icon: '💻', color: 'from-blue-600 to-blue-500' },
-    { id: 'windowsServer', label: 'Windows Server', icon: '🖥️', color: 'from-violet-500 to-purple-500' },
-    { id: 'edge', label: 'Microsoft Edge', icon: '🌐', color: 'from-cyan-500 to-blue-500' },
-    { id: 'office365', label: 'Office 365', icon: '📊', color: 'from-orange-500 to-red-500' },
-  ];
+    { id: 'windows11', label: 'Windows 11', icon: '🪟' },
+    { id: 'windows10', label: 'Windows 10', icon: '💻' },
+    { id: 'windowsServer', label: 'Windows Server', icon: '🖥️' },
+    { id: 'edge', label: 'Microsoft Edge', icon: '🌐' },
+    { id: 'office365', label: 'Office 365', icon: '📊' },
+  ] as const;
 
   const architectures = ['amd64', 'arm64', 'x86'];
   const platforms = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'];
   const downloadFilters = ['All', 'Download Available', 'No Downloads'];
-  const months = ['Last 60 Days', 'Last 30 Days', 'All', 'January', 'February', 'March', 'April', 'May', 'June',
-                  'July', 'August', 'September', 'October', 'November', 'December'];
   const currentYear = new Date().getFullYear();
-  const years = ['All', ...Array.from({ length: 5 }, (_, i) => (currentYear - i).toString())];
-  const officeChannels = Array.from(new Set(officeBuilds.map((build) => build.channel).filter(Boolean))).sort();
-  const sortOptions = activeTab === 'edge'
+  const years = [ALL_DATES, ...Array.from({ length: 5 }, (_, i) => (currentYear - i).toString())];
+
+  const sortOptions = isEdgeTab
     ? [
         { value: 'version-desc', label: 'Version high to low' },
         { value: 'version-asc', label: 'Version low to high' },
@@ -441,113 +293,122 @@ function AppContent() {
         { value: 'date-asc', label: 'Oldest first' },
       ];
 
+  const errorMessage = query.error
+    ? query.error.message || 'Failed to load builds'
+    : null;
+
+  const modalOpen = selectedBuild !== null;
+
   return (
-    <div className="wf-app-shell min-h-screen transition-colors duration-300">
-      <Header />
+    <>
+      {/* `inert` keeps the page behind an open dialog out of the tab order and
+          the accessibility tree. The dialog itself is portaled to <body>, so it
+          sits outside this subtree and stays interactive. */}
+      <div className="wf-app-shell min-h-screen transition-colors duration-300" inert={modalOpen}>
+        <Header />
 
-      <main className="wf-frost max-w-[1200px] mx-auto my-6 rounded-xl px-4 sm:px-6 py-7">
-        {/* Hero Section */}
-        <motion.div
-          className="mb-8 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h2 className="text-4xl font-bold mb-3 text-blue-600 dark:text-blue-400">
-            Real-Time Windows Updates
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Stay informed about the latest Windows, Microsoft Edge, and Office 365 builds with real-time updates and detailed information.
-          </p>
-        </motion.div>
-
-        {/* Tab Navigation */}
-        <motion.div
-          className="mb-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <div className="flex flex-wrap gap-2 justify-center">
-            {tabs.map((tab) => (
-              <motion.button
-                key={tab.id}
-                className={cn(
-                  'px-6 py-3 rounded-lg font-semibold transition-colors duration-100',
-                  'border',
-                  activeTab === tab.id
-                    ? 'bg-blue-500 text-white border-transparent card-shadow'
-                    : 'glass hover:border-blue-400 text-gray-700 dark:text-gray-200'
-                )}
-                onClick={() => handleTabChange(tab.id as TabType)}
-                aria-current={activeTab === tab.id ? 'page' : undefined}
-                whileTap={{ scale: 0.97 }}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="text-xl">{tab.icon}</span>
-                  {tab.label}
-                </span>
-              </motion.button>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Static Downloads Section for Windows 11 */}
-        {activeTab === 'windows11' && <StaticDownloads />}
-
-        {/* Help Link for Windows Builds */}
-        {(activeTab === 'windows11' || activeTab === 'windows10' || activeTab === 'windowsServer') && (
+        <main className="wf-frost max-w-[1200px] mx-auto my-6 rounded-xl px-4 sm:px-6 py-7">
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            className="mb-8 text-center"
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mb-4 flex justify-center"
+            transition={{ duration: 0.4 }}
           >
-            <a
-              href="https://windowsforum.com/threads/how-to-create-a-windows-iso-using-uupdump-windows-11-24h2.338857/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-              <span className="font-medium">How to Create a Windows ISO using UUPDump</span>
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
+            <h2 className="text-4xl font-bold mb-3 text-blue-600 dark:text-blue-400">
+              Real-Time Windows Updates
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+              Stay informed about the latest Windows, Microsoft Edge, and Office 365 builds with real-time updates and detailed information.
+            </p>
           </motion.div>
-        )}
 
-        {/* Filters Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
+          <nav className="mb-6" aria-label="Product">
+            <div className="flex flex-wrap gap-2 justify-center">
+              {tabs.map((tab) => (
+                <motion.button
+                  key={tab.id}
+                  type="button"
+                  className={cn(
+                    'px-6 py-3 rounded-lg font-semibold transition-colors duration-100 border',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+                    activeTab === tab.id
+                      ? 'bg-blue-500 text-white border-transparent card-shadow'
+                      : 'glass hover:border-blue-400 text-gray-700 dark:text-gray-200',
+                  )}
+                  onClick={() => handleTabChange(tab.id as TabType)}
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-xl" aria-hidden="true">{tab.icon}</span>
+                    {tab.label}
+                  </span>
+                </motion.button>
+              ))}
+            </div>
+          </nav>
+
+          {activeTab === 'windows11' && <StaticDownloads />}
+
+          {isWindowsTab(activeTab) && (
+            <div className="mb-4 flex justify-center">
+              <a
+                href="https://windowsforum.com/threads/how-to-create-a-windows-iso-using-uupdump-windows-11-24h2.338857/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span className="font-medium">How to Create a Windows ISO using UUPDump</span>
+              </a>
+            </div>
+          )}
+
+          {/* Microsoft ships no per-build Office installer, so the Download Center
+              is offered once here instead of on every row. */}
+          {isOfficeTab && (
+            <div className="mb-4 flex justify-center">
+              <a
+                href={OFFICE_DOWNLOAD_CENTER}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span className="font-medium">Microsoft 365 Download Center</span>
+              </a>
+            </div>
+          )}
+
           <Card variant="default" className="mb-6">
             <div className="p-6">
               <div className="flex flex-wrap gap-4 items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filters</h3>
-                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Updated {lastUpdated.toLocaleTimeString()}</span>
-                  </div>
+                  {query.isSuccess && query.dataUpdatedAt > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Updated {new Date(query.dataUpdatedAt).toLocaleTimeString()}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button
                     variant={viewMode === 'grid' ? 'primary' : 'ghost'}
                     size="sm"
+                    aria-pressed={viewMode === 'grid'}
                     onClick={() => setViewMode('grid')}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                         d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                     </svg>
@@ -556,11 +417,11 @@ function AppContent() {
                   <Button
                     variant={viewMode === 'list' ? 'primary' : 'ghost'}
                     size="sm"
+                    aria-pressed={viewMode === 'list'}
                     onClick={() => setViewMode('list')}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M4 6h16M4 12h16M4 18h16" />
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                     List
                   </Button>
@@ -568,105 +429,118 @@ function AppContent() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Search */}
                 <div className="relative">
+                  <label htmlFor="build-search" className="sr-only">Search builds</label>
                   <input
-                    type="text"
+                    id="build-search"
+                    type="search"
                     placeholder="Search builds..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full px-4 py-2 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
 
-                {/* Architecture, Edge platform, or Office channel */}
                 {isEdgeTab ? (
                   <select
+                    aria-label="Filter by platform"
                     value={platformFilter}
                     onChange={(e) => setPlatformFilter(e.target.value)}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={SELECT_CLASS}
                   >
                     <option value="All">All Platforms</option>
-                    {platforms.map(platform => (
+                    {platforms.map((platform) => (
                       <option key={platform} value={platform}>{platform}</option>
                     ))}
                   </select>
-                ) : activeTab === 'office365' ? (
+                ) : isOfficeTab ? (
                   <select
+                    aria-label="Filter by Office channel"
                     value={filters.officeChannel || 'All'}
                     onChange={(e) => setFilters({ ...filters, officeChannel: e.target.value === 'All' ? undefined : e.target.value })}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={SELECT_CLASS}
                   >
                     <option value="All">All Channels</option>
-                    {officeChannels.map(channel => (
+                    {officeChannels.map((channel) => (
                       <option key={channel} value={channel}>{channel}</option>
                     ))}
                   </select>
                 ) : (
                   <select
+                    aria-label="Filter by architecture"
                     value={filters.selectedArch}
                     onChange={(e) => setFilters({ ...filters, selectedArch: e.target.value })}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={SELECT_CLASS}
                   >
-                    {architectures.map(arch => (
+                    {architectures.map((arch) => (
                       <option key={arch} value={arch}>{arch}</option>
                     ))}
                   </select>
                 )}
 
-                {/* Month */}
                 <select
+                  aria-label="Filter by date range"
                   value={filters.selectedMonth}
-                  onChange={(e) => setFilters({ ...filters, selectedMonth: e.target.value })}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => {
+                    const month = e.target.value;
+                    // Selecting a rolling window clears the year outright, so the
+                    // page can never claim "Last 60 Days" while showing all of 2024.
+                    setFilters({
+                      ...filters,
+                      selectedMonth: month,
+                      selectedYear: isRollingMonth(month) ? ALL_DATES : filters.selectedYear,
+                    });
+                  }}
+                  className={SELECT_CLASS}
                 >
-                  {months.map(month => (
+                  {MONTH_OPTIONS.map((month) => (
                     <option key={month} value={month}>{month}</option>
                   ))}
                 </select>
 
-                {/* Year */}
                 <select
-                  value={filters.selectedYear}
+                  aria-label="Filter by year"
+                  title={rollingDates ? 'Year does not apply to a rolling date range' : undefined}
+                  value={rollingDates ? ALL_DATES : filters.selectedYear}
+                  disabled={rollingDates}
                   onChange={(e) => setFilters({ ...filters, selectedYear: e.target.value })}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={SELECT_CLASS}
                 >
-                  {years.map(year => (
+                  {years.map((year) => (
                     <option key={year} value={year}>{year}</option>
                   ))}
                 </select>
 
-                {/* Sort */}
                 <select
+                  aria-label="Sort builds"
                   value={activeSortBy}
-                  onChange={(e) => setFilters({ ...filters, sortBy: e.target.value as FilterOptions['sortBy'] })}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFilters({ ...filters, sortBy: e.target.value as SortBy })}
+                  className={SELECT_CLASS}
                 >
-                  {sortOptions.map(option => (
+                  {sortOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </div>
 
               <div className="mt-4 flex items-center gap-4 flex-wrap">
-                {/* Download filter for Edge */}
-                {activeTab === 'edge' && (
+                {isEdgeTab && (
                   <select
+                    aria-label="Filter by download availability"
                     value={downloadFilter}
                     onChange={(e) => setDownloadFilter(e.target.value)}
                     className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {downloadFilters.map(filter => (
+                    {downloadFilters.map((filter) => (
                       <option key={filter} value={filter}>{filter}</option>
                     ))}
                   </select>
                 )}
 
-                {activeTab !== 'office365' && (
+                {!isOfficeTab && (
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -678,207 +552,143 @@ function AppContent() {
                   </label>
                 )}
 
+                {/* Announcing "0 builds found" while the skeletons are still up
+                    is both wrong and, with aria-live, spoken aloud. */}
                 <Badge variant="info" size="sm">
-                  {filteredBuilds.length} builds found
+                  <span aria-live="polite">
+                    {query.isLoading ? 'Loading builds…' : `${filteredBuilds.length} builds found`}
+                  </span>
                 </Badge>
               </div>
             </div>
           </Card>
-        </motion.div>
 
-        {/* Channel quick-filter (Windows tabs) */}
-        {(activeTab === 'windows11' || activeTab === 'windows10' || activeTab === 'windowsServer') && (
-          <QuickFilterBar
-            activeChannel={filters.buildType ?? null}
-            onSelect={(ch) => setFilters({ ...filters, buildType: ch ?? undefined })}
-          />
-        )}
-
-        {/* Error State */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mb-6"
-          >
-            <Card variant="default" className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
-              <div className="p-6 flex items-center gap-3">
-                <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <h4 className="font-semibold text-red-900 dark:text-red-200">Error loading builds</h4>
-                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => loadBuilds()} className="ml-auto">
-                  Retry
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Builds Grid/List */}
-        <AnimatePresence mode="wait">
-          {loading ? (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className={cn(
-                viewMode === 'grid'
-                  ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                  : 'space-y-4'
-              )}
-            >
-              {[...Array(6)].map((_, i) => (
-                <SkeletonBuildItem key={i} />
-              ))}
-            </motion.div>
-          ) : filteredBuilds.length === 0 ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <Card variant="default" className="text-center py-12">
-                <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No builds found</h3>
-                <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters or search query</p>
-              </Card>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="builds"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              {/* List view header */}
-              {viewMode === 'list' && (
-                <div className="flex items-center gap-2 p-2 mb-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <div className="flex-shrink-0 w-48 lg:w-56 xl:w-64">Build</div>
-                  <div className="flex-shrink-0 w-20">Type</div>
-                  <div className="flex-shrink-0 w-16 text-center">
-                    {isEdgeTab ? 'Platform' : activeTab === 'office365' ? 'Channel' : 'Arch'}
-                  </div>
-                  <div className="flex-shrink-0 w-20">Date</div>
-                  <div className="flex-shrink-0 w-24">Download</div>
-                  <div className="flex-grow" />
-                  <div className="flex-shrink-0 w-16">Actions</div>
-                </div>
-              )}
-
-              <div className={cn(
-                viewMode === 'grid'
-                  ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                  : 'space-y-2'
-              )}>
-                {viewMode === 'grid' ? (
-                filteredBuilds.map((build, index) => (
-                  <BuildCard
-                    key={getBuildKey(build, index)}
-                    build={build}
-                    type={activeTab.includes('edge') ? 'edge' : activeTab.includes('office') ? 'office' : 'windows'}
-                    onClick={() => {
-                      setSelectedBuild(build);
-                      setModalOpen(true);
-                    }}
-                    index={index}
-                  />
-                ))
-              ) : (
-                filteredBuilds.map((build, index) => (
-                  <BuildListItem
-                    key={getBuildKey(build, index)}
-                    build={build}
-                    type={activeTab.includes('edge') ? 'edge' : activeTab.includes('office') ? 'office' : 'windows'}
-                    onClick={() => {
-                      setSelectedBuild(build);
-                      setModalOpen(true);
-                    }}
-                    index={index}
-                  />
-                ))
-              )}
-              </div>
-            </motion.div>
+          {isWindowsTab(activeTab) && (
+            <QuickFilterBar
+              activeChannel={filters.buildType ?? null}
+              onSelect={(channel) => setFilters({ ...filters, buildType: channel ?? undefined })}
+            />
           )}
-        </AnimatePresence>
-      </main>
 
-      {/* Build Details Modal */}
+          {errorMessage && (
+            <div className="mb-6">
+              <Card variant="default" className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                <div className="p-6 flex items-center gap-3" role="alert">
+                  <svg className="w-6 h-6 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h4 className="font-semibold text-red-900 dark:text-red-200">Error loading builds</h4>
+                    <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => query.refetch()} className="ml-auto">
+                    Retry
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          <AnimatePresence mode="wait">
+            {query.isLoading ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                aria-busy="true"
+                aria-label="Loading builds"
+                className={cn(viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4')}
+              >
+                {Array.from({ length: 6 }, (_, i) => <SkeletonBuildItem key={`skeleton-${i}`} />)}
+              </motion.div>
+            ) : filteredBuilds.length === 0 && !errorMessage ? (
+              <motion.div key="empty" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <Card variant="default" className="text-center py-12">
+                  <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No builds found</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters or search query</p>
+                </Card>
+              </motion.div>
+            ) : (
+              <motion.div key="builds" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {viewMode === 'list' && (
+                  <div className="hidden md:flex items-center gap-2 p-2 mb-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <div className="flex-shrink-0 w-48 lg:w-56 xl:w-64">Build</div>
+                    <div className="flex-shrink-0 w-20">Type</div>
+                    <div className="flex-shrink-0 w-16 text-center">
+                      {isEdgeTab ? 'Platform' : isOfficeTab ? 'Channel' : 'Arch'}
+                    </div>
+                    <div className="flex-shrink-0 w-20">Date</div>
+                    <div className="flex-shrink-0 w-24">Download</div>
+                    <div className="flex-grow" />
+                    <div className="flex-shrink-0 w-16">Actions</div>
+                  </div>
+                )}
+
+                <div className={cn(viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-2')}>
+                  {filteredBuilds.map((build, index) =>
+                    viewMode === 'grid' ? (
+                      <BuildCard key={buildKey(build, index)} build={build} onClick={() => setSelectedBuild(build)} />
+                    ) : (
+                      <BuildListItem key={buildKey(build, index)} build={build} onClick={() => setSelectedBuild(build)} />
+                    ),
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+
+        <footer className="mt-10 pb-10 px-4">
+          <div className="wf-frost rounded-xl max-w-[1200px] mx-auto px-6 py-5 text-center space-y-2">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Build information courtesy of{' '}
+              <a href="https://uupdump.net" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                UUPDump.net
+              </a>
+              {' and '}
+              <span className="font-medium">Microsoft Corporation</span>
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Download official Windows directly from{' '}
+              <a href="https://www.microsoft.com/software-download/windows11" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                Microsoft Windows 11
+              </a>
+              {' | '}
+              <a href="https://www.microsoft.com/software-download/windows10" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                Windows 10
+              </a>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 pt-2 max-w-2xl mx-auto leading-relaxed">
+              WindowsForum.com is an independent community website and is not affiliated with,
+              endorsed by, or sponsored by Microsoft Corporation. Windows is a trademark of the
+              Microsoft group of companies.
+            </p>
+          </div>
+        </footer>
+      </div>
+
       {selectedBuild && (
-        <BuildDetailsModal
-          build={selectedBuild}
-          type={activeTab.includes('edge') ? 'edge' : activeTab.includes('office') ? 'office' : 'windows'}
-          isOpen={modalOpen}
-          onClose={() => {
-            setModalOpen(false);
-            setSelectedBuild(null);
-          }}
-        />
+        <BuildDetailsModal build={selectedBuild} isOpen onClose={() => setSelectedBuild(null)} />
       )}
-
-      {/* Attribution Footer */}
-      <footer className="mt-10 pb-10 px-4">
-        <div className="wf-frost rounded-xl max-w-[1200px] mx-auto px-6 py-5 text-center space-y-2">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Build information courtesy of{' '}
-            <a
-              href="https://uupdump.net"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-            >
-              UUPDump.net
-            </a>
-            {' and '}
-            <span className="font-medium">Microsoft Corporation</span>
-          </p>
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Download official Windows directly from{' '}
-            <a
-              href="https://www.microsoft.com/software-download/windows11"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-            >
-              Microsoft Windows 11
-            </a>
-            {' | '}
-            <a
-              href="https://www.microsoft.com/software-download/windows10"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-            >
-              Windows 10
-            </a>
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 pt-2 max-w-2xl mx-auto leading-relaxed">
-            WindowsForum.com is an independent community website and is not affiliated with,
-            endorsed by, or sponsored by Microsoft Corporation. Windows is a trademark of the
-            Microsoft group of companies.
-          </p>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AppContent />
-      </ThemeProvider>
+      {/* Honours `prefers-reduced-motion` for every framer-motion animation. */}
+      <MotionConfig reducedMotion="user">
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </MotionConfig>
     </QueryClientProvider>
   );
 }

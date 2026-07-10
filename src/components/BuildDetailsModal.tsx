@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Badge, BuildTypeBadge, ChannelBadge } from './ui/Badge';
@@ -7,100 +7,90 @@ import { Skeleton } from './ui/Skeleton';
 import { apiService } from '../services/api';
 import { kindMeta, statusMeta } from '../config/releaseChannels';
 import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from '../utils/typeGuards';
+import { buildDateValue, buildProduct } from '../utils/buildRecord';
+import { formatBuildDate, LONG_DATE } from '../utils/dates';
+import { downloadTarget, openExternal, OFFICE_DOWNLOAD_CENTER } from '../utils/downloads';
 import type { EdgeArtifact } from '../types';
 
-type BuildDetails = BuildRecord;
-
 interface BuildDetailsModalProps {
-  build: BuildDetails;
-  type: 'windows' | 'edge' | 'office';
+  build: BuildRecord;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
-  build,
-  type,
-  isOpen,
-  onClose,
-}) => {
-  const [summary, setSummary] = useState<string>('');
+/** Stable identity used as the summary cache key on the backend. */
+function summaryIdentity(build: BuildRecord): { uuid: string; title: string } | null {
+  if (isWindowsBuild(build)) {
+    return { uuid: build.uuid, title: build.title || 'Windows Build' };
+  }
+  if (isEdgeBuild(build)) {
+    const uuid = build.ReleaseId
+      ? String(build.ReleaseId)
+      : `${build.Product}_${build.Platform}_${build.Architecture}_${build.Version}`;
+    return { uuid, title: `Microsoft Edge ${build.Product || ''} ${build.Version || ''}`.trim() };
+  }
+  if (isOfficeBuild(build)) {
+    const uuid = `${build.channel.replace(/\s+/g, '_')}_${build.build || ''}`;
+    return { uuid, title: build.title || build.name || 'Office 365 Build' };
+  }
+  return null;
+}
+
+export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({ build, isOpen, onClose }) => {
+  const [summary, setSummary] = useState('');
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const product = buildProduct(build);
+  const download = downloadTarget(build);
+  const isOffice = isOfficeBuild(build);
 
-    if (!isOpen) {
-      return;
-    }
+  useEffect(() => {
+    if (!isOpen) return;
 
     if (isWindowsBuild(build) && build.summary) {
       setSummary(build.summary);
+      setSummaryError(false);
       return;
     }
 
-    let uuid = '';
-    let title = '';
-    const buildType = type;
-
-    if (isWindowsBuild(build)) {
-      uuid = build.uuid;
-      title = build.title || 'Windows Build';
-    } else if (isEdgeBuild(build)) {
-      uuid = build.ReleaseId ? String(build.ReleaseId) : `${build.Product}_${build.Platform}_${build.Architecture}_${build.Version}`;
-      title = `Microsoft Edge ${build.Product || ''} ${build.Version || ''}`.trim();
-    } else if (isOfficeBuild(build)) {
-      uuid = `${build.channel.replace(/\s+/g, '_')}_${build.build || ''}`;
-      title = build.title || build.name || 'Office 365 Build';
-    }
-
-    if (!uuid) {
+    const identity = summaryIdentity(build);
+    if (!identity?.uuid) {
       setSummary('');
       return;
     }
 
+    const controller = new AbortController();
     setSummary('');
     setSummaryError(false);
     setLoadingSummary(true);
-    apiService.fetchBuildSummary(uuid, title, buildType)
-      .then((fetchedSummary) => {
-        if (!cancelled) setSummary(fetchedSummary);
-      })
+
+    apiService
+      .fetchBuildSummary(identity.uuid, identity.title, product, controller.signal)
+      .then((fetched) => setSummary(fetched))
       .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
         console.error('Failed to fetch summary:', error);
-        if (!cancelled) {
-          setSummary('');
-          setSummaryError(true);
-        }
+        setSummary('');
+        setSummaryError(true);
       })
       .finally(() => {
-        if (!cancelled) setLoadingSummary(false);
+        if (!controller.signal.aborted) setLoadingSummary(false);
       });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, build, type, retryNonce]);
+    return () => controller.abort();
+  }, [isOpen, build, product, retryNonce]);
 
   const getBuildTitle = () => {
-    if (isEdgeBuild(build)) {
-      return `Microsoft Edge ${build.Product || ''}`;
-    }
-    if (isOfficeBuild(build)) {
-      return build.title || build.name || 'Office 365 Build';
-    }
+    if (isEdgeBuild(build)) return `Microsoft Edge ${build.Product || ''}`.trim();
+    if (isOfficeBuild(build)) return build.title || build.name || 'Office 365 Build';
     return build.title || 'Build Details';
   };
 
   const getBuildNumber = () => {
-    if (isWindowsBuild(build)) {
-      return build.build_number || build.build || 'N/A';
-    }
-    if (isEdgeBuild(build)) {
-      return build.Version || 'N/A';
-    }
+    if (isWindowsBuild(build)) return build.build_number || build.build || 'N/A';
+    if (isEdgeBuild(build)) return build.Version || 'N/A';
     return build.build || build.version || 'N/A';
   };
 
@@ -110,77 +100,30 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
     return null;
   };
 
-  const getBuildDate = () => {
-    if (isWindowsBuild(build)) return build.created || build.created_timestamp;
-    if (isEdgeBuild(build)) return build.PublishedTime;
-    return build.releaseDate;
-  };
-
   const getBuildId = () => {
     if (isWindowsBuild(build)) return build.uuid;
     if (isEdgeBuild(build)) return build.ReleaseId;
     return null;
   };
 
-  const formatDate = (date?: string | number) => {
-    if (!date) return 'Unknown';
-    const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);
-    return d.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getDownloadUrl = () => {
-    if (isWindowsBuild(build)) {
-      return `https://uupdump.net/selectlang.php?id=${build.uuid}`;
-    }
-    if (isEdgeBuild(build) && build.Artifacts && build.Artifacts.length > 0) {
-      return build.Artifacts[0].Location;
-    }
-    if (isOfficeBuild(build)) {
-      return 'https://www.microsoft.com/en-us/download/office.aspx';
-    }
-    return null;
-  };
-
-  const handleDownload = () => {
-    const url = getDownloadUrl();
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  };
-
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={getBuildTitle()}
-      size="lg"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={getBuildTitle()} size="lg">
       <div className="space-y-6">
-        {/* Build Information */}
         <div>
           <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
             Build Information
           </h3>
           <Card variant="outline" className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Version/Build Number */}
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {type === 'windows' ? 'Build Number' : 'Version'}
+                  {product === 'windows' ? 'Build Number' : 'Version'}
                 </p>
                 <p className="font-mono text-lg font-semibold text-gray-900 dark:text-white">
                   {getBuildNumber()}
                 </p>
               </div>
 
-              {/* Architecture/Platform */}
               {getPlatformOrArchitecture() && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -192,15 +135,13 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
                 </div>
               )}
 
-              {/* Last Seen */}
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Last Seen</p>
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  {formatDate(getBuildDate())}
+                  {formatBuildDate(buildDateValue(build), LONG_DATE)}
                 </p>
               </div>
 
-              {/* UUID/Release ID */}
               {getBuildId() && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -213,14 +154,9 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
               )}
             </div>
 
-            {/* Badges */}
             <div className="flex flex-wrap gap-2 mt-4">
-              {isWindowsBuild(build) && build.build_type && (
-                <BuildTypeBadge type={build.build_type} />
-              )}
-              {isWindowsBuild(build) && build.branch && (
-                <Badge variant="secondary">{build.branch}</Badge>
-              )}
+              {isWindowsBuild(build) && build.build_type && <BuildTypeBadge type={build.build_type} />}
+              {isWindowsBuild(build) && build.branch && <Badge variant="secondary">{build.branch}</Badge>}
               {isWindowsBuild(build) && build.kind && kindMeta(build.kind) && (
                 <Badge variant="default" className={kindMeta(build.kind)!.badgeClass}>
                   {kindMeta(build.kind)!.label}
@@ -231,20 +167,13 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
                   {statusMeta(build.status)!.label}
                 </Badge>
               )}
-              {isEdgeBuild(build) && build.Product && (
-                <ChannelBadge channel={build.Product} />
-              )}
-              {isOfficeBuild(build) && build.channel && (
-                <Badge variant="primary">{build.channel}</Badge>
-              )}
-              {isOfficeBuild(build) && build.latest && (
-                <Badge variant="success">Latest</Badge>
-              )}
+              {isEdgeBuild(build) && build.Product && <ChannelBadge channel={build.Product} />}
+              {isOfficeBuild(build) && build.channel && <Badge variant="primary">{build.channel}</Badge>}
+              {isOfficeBuild(build) && build.latest && <Badge variant="success">Latest</Badge>}
             </div>
           </Card>
         </div>
 
-        {/* Summary */}
         {(summary || loadingSummary || summaryError) && (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
@@ -252,13 +181,15 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
             </h3>
             <Card variant="outline" className="p-4">
               {loadingSummary ? (
-                <div className="space-y-2">
+                <div className="space-y-2" aria-busy="true" aria-label="Loading summary">
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-3/4" />
                 </div>
               ) : summaryError ? (
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-gray-600 dark:text-gray-400">Couldn’t load the summary.</p>
+                  <p className="text-gray-600 dark:text-gray-400" role="alert">
+                    Couldn’t load the summary.
+                  </p>
                   <Button variant="outline" size="sm" onClick={() => setRetryNonce((n) => n + 1)}>
                     Retry
                   </Button>
@@ -272,76 +203,53 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
           </div>
         )}
 
-        {/* Edge Artifacts or No Downloads Available Message */}
         {isEdgeBuild(build) && (
-          build.Artifacts && build.Artifacts.length > 0 ? (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
               Download Options
             </h3>
             <Card variant="outline" className="p-4">
-              <div className="space-y-3">
-                {build.Artifacts.map((artifact: EdgeArtifact, index: number) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-900"
-                  >
-                    <div className="flex items-center gap-3">
-                      <svg
-                        className="w-5 h-5 text-gray-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {artifact.ArtifactName.toUpperCase()}
-                        </p>
-                        {artifact.SizeInBytes && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {(artifact.SizeInBytes / (1024 * 1024)).toFixed(2)} MB
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => window.open(artifact.Location, '_blank')}
+              {build.Artifacts && build.Artifacts.length > 0 ? (
+                <div className="space-y-3">
+                  {build.Artifacts.map((artifact: EdgeArtifact) => (
+                    <div
+                      key={artifact.Location}
+                      className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900"
                     >
-                      Download
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-          ) : (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Download Options
-              </h3>
-              <Card variant="outline" className="p-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <svg className="w-5 h-5 flex-shrink-0 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white truncate">
+                            {artifact.ArtifactName.toUpperCase()}
+                          </p>
+                          {artifact.SizeInBytes && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {(artifact.SizeInBytes / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {/* Previously `window.open(location, '_blank')` with no
+                          `noopener` — the opened page kept a live `window.opener`. */}
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        aria-label={`Download ${artifact.ArtifactName.toUpperCase()} for Edge ${build.Version}`}
+                        onClick={() => openExternal(artifact.Location)}
+                      >
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
                 <div className="text-center py-4">
-                  <svg
-                    className="w-12 h-12 mx-auto text-gray-400 mb-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M12 11v4m0 0l-2-2m2 2l2-2"
-                    />
+                  <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M12 11v4m0 0l-2-2m2 2l2-2" />
                   </svg>
                   <p className="text-gray-600 dark:text-gray-400">
                     No download links available for this build yet.
@@ -350,12 +258,39 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
                     Downloads are typically available for recent builds.
                   </p>
                 </div>
-              </Card>
-            </div>
-          )
+              )}
+            </Card>
+          </div>
         )}
 
-        {/* CVEs for Edge */}
+        {/* Office has no per-build media. Say so, and point at the one page that
+            does exist, rather than dressing the Download Center up as a
+            build-specific artifact. */}
+        {isOffice && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Downloads
+            </h3>
+            <Card variant="outline" className="p-4">
+              <p className="text-gray-600 dark:text-gray-400 mb-3">
+                Microsoft does not publish per-build installers for Microsoft 365. Servicing builds
+                arrive through the update channel configured on the device.
+              </p>
+              <a
+                href={OFFICE_DOWNLOAD_CENTER}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              >
+                Open the Microsoft 365 Download Center
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </Card>
+          </div>
+        )}
+
         {isEdgeBuild(build) && build.CVEs && build.CVEs.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
@@ -363,8 +298,8 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
             </h3>
             <Card variant="outline" className="p-4">
               <div className="flex flex-wrap gap-2">
-                {build.CVEs.map((cve: string, index: number) => (
-                  <Badge key={index} variant="warning" size="sm">
+                {build.CVEs.map((cve: string) => (
+                  <Badge key={cve} variant="warning" size="sm">
                     {cve}
                   </Badge>
                 ))}
@@ -373,27 +308,17 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          {getDownloadUrl() && (
-            <Button variant="primary" onClick={handleDownload}>
-              <svg
-                className="w-4 h-4 mr-2"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
-                />
+          {download && (
+            <Button variant="primary" onClick={() => openExternal(download.url)}>
+              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
               </svg>
-              {type === 'windows' ? 'Download from UUP Dump' : 'Download'}
+              {download.label}
             </Button>
           )}
         </div>

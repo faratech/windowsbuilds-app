@@ -92,25 +92,31 @@ export type Architecture = 'amd64' | 'arm64' | 'x86';
 
 export type TabType = 'windows11' | 'windows10' | 'windowsServer' | 'edge' | 'office365';
 
-export interface FilterOptions {
-  selectedMonth?: string;
-  selectedYear?: string;
-  selectedArch?: string;
-  excludeInsider?: boolean;
-  buildFilter?: string;
-  buildType?: BuildType;
-  tab?: TabType;
-  officeChannel?: string;
-  sortBy?: 'date-desc' | 'date-asc' | 'build-desc' | 'build-asc' | 'version-desc' | 'version-asc';
+/**
+ * Envelope returned by every `/api/builds/*` list endpoint. `error` is present
+ * on upstream failures that the backend still answers with HTTP 200, so it has
+ * to be part of the contract rather than an afterthought.
+ */
+export interface BuildListResponse<T> {
+  builds: T[];
+  total?: number;
+  cache_time?: string;
+  error?: string;
 }
 
-export interface BuildsState {
-  windowsBuilds: WindowsBuild[];
-  edgeBuilds: EdgeBuild[];
-  officeBuilds: OfficeBuild[];
-  loading: boolean;
-  error: string | null;
-  activeTab: TabType;
-  filters: FilterOptions;
-  searchQuery: string;
+export type SortBy =
+  | 'date-desc' | 'date-asc'
+  | 'build-desc' | 'build-asc'
+  | 'version-desc' | 'version-asc';
+
+export interface FilterOptions {
+  /** One of `MONTH_OPTIONS`; rolling values force `selectedYear` to 'All'. */
+  selectedMonth: string;
+  selectedYear: string;
+  selectedArch: string;
+  excludeInsider: boolean;
+  /** Windows channel chip. Applies to Windows records only — never Edge/Office. */
+  buildType?: BuildType;
+  officeChannel?: string;
+  sortBy: SortBy;
 }

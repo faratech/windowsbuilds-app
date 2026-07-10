@@ -5,29 +5,23 @@ import { Badge, BuildTypeBadge, ChannelBadge } from './ui/Badge';
 import { Button } from './ui/Button';
 import { kindMeta, statusMeta } from '../config/releaseChannels';
 import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from '../utils/typeGuards';
-
-type BuildCardRecord = BuildRecord;
+import { buildDateValue, buildProduct } from '../utils/buildRecord';
+import { formatBuildDate, SHORT_DATE } from '../utils/dates';
+import { downloadTarget, openExternal } from '../utils/downloads';
 
 interface BuildCardProps {
-  build: BuildCardRecord;
-  type: 'windows' | 'edge' | 'office';
+  build: BuildRecord;
   onClick?: () => void;
-  index?: number;
 }
 
-export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, index = 0 }) => {
-  const formatDate = (date?: string | number) => {
-    if (!date) return 'Unknown';
-    const d = typeof date === 'number' ? new Date(date * 1000) : new Date(date);
-    return d.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+export const BuildCard: React.FC<BuildCardProps> = ({ build, onClick }) => {
+  // Derived from the record, never from the active tab: a card must describe
+  // the build it was handed even if the tab changes beneath it.
+  const product = buildProduct(build);
+  const download = downloadTarget(build);
 
   const getIcon = () => {
-    switch (type) {
+    switch (product) {
       case 'windows':
         return (
           <div className="p-3 bg-blue-500 rounded-lg card-shadow">
@@ -73,40 +67,15 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
     return undefined;
   };
 
-  const getDate = () => {
-    if (isWindowsBuild(build)) return build.created || build.created_timestamp;
-    if (isEdgeBuild(build)) return build.PublishedTime;
-    return build.releaseDate;
-  };
-
-  const getDownloadUrl = () => {
-    if (isWindowsBuild(build)) return `https://uupdump.net/selectlang.php?id=${build.uuid}`;
-    if (isEdgeBuild(build) && build.Artifacts?.length) return build.Artifacts[0].Location;
-    if (isOfficeBuild(build)) return 'https://www.microsoft.com/en-us/download/office.aspx';
-    return null;
-  };
-
   const summary = getSummary();
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 50 },
-    visible: {
-      opacity: 1,
-      y: 0,
-    },
-  };
-
-
+  // `delay: index * 0.1` staggered every card in the list, so with 83 Windows
+  // builds the last one faded in 8.3 seconds after paint. Animate them together.
   return (
     <motion.div
-      variants={cardVariants}
-      initial="hidden"
-      animate="visible"
-      transition={{
-        duration: 0.5,
-        delay: index * 0.1,
-        ease: "easeInOut",
-      }}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
       whileHover={{ y: -2, transition: { duration: 0.15 } }}
     >
       <Card
@@ -206,7 +175,7 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
                   d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span>
-                {formatDate(getDate())}
+                {formatBuildDate(buildDateValue(build), SHORT_DATE)}
               </span>
             </div>
             {isWindowsBuild(build) && build.uuid && (
@@ -223,40 +192,38 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, type, onClick, inde
 
         <CardFooter>
           <div className="flex items-center justify-between w-full">
-            {/* Conditionally show download button */}
-            {getDownloadUrl() ? (
+            {/* Office builds have no per-build installer, so `download` is null
+                and no misleading button is rendered for them. */}
+            {download ? (
               <Button
                 variant="ghost"
                 size="sm"
+                aria-label={`${download.label}: ${getTitle()}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  const url = getDownloadUrl();
-                  if (url) {
-                    window.open(url, '_blank', 'noopener,noreferrer');
-                  }
+                  openExternal(download.url);
                 }}
               >
-                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                 </svg>
                 Download
               </Button>
             ) : (
-              <div /> // Empty div to maintain spacing
+              <div />
             )}
             <Button
               variant="ghost"
               size="sm"
+              aria-label={`View details for ${getTitle()}`}
               onClick={(e) => {
                 e.stopPropagation();
-                if (onClick) {
-                  onClick();
-                }
+                onClick?.();
               }}
             >
               View Details
-              <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M9 5l7 7-7 7" />
               </svg>
