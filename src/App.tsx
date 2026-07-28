@@ -353,7 +353,7 @@ function AppContent() {
           {isWindowsTab(activeTab) && (
             <div className="mb-4 flex justify-center">
               <a
-                href="https://windowsforum.com/threads/how-to-create-a-windows-iso-using-uupdump-windows-11-24h2.338857/"
+                href="https://windowsforum.com/windows-tutorials.305/how-to-create-a-windows-iso-using-uupdump-windows-11-24h2.338857/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
