@@ -21,7 +21,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fluentui/react-icons": "^2.0.335",
+    "@fluentui/react-icons": "^2.0.336",
     "@tanstack/react-query": "^5.101.4",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.0",
