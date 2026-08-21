@@ -104,6 +104,142 @@
   border-color: #272729;
 }
 
+/* Product navigation is the app's one expressive moment: familiar Fluent
+   silhouettes sit on bright Windows-style tiles while the controls themselves
+   stay quiet, dense, and readable in both themes. */
+.wf-product-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wf-product-tab {
+  min-width: 0;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(96, 94, 92, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #242424;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 100ms ease-out, border-color 100ms ease-out,
+    box-shadow 100ms ease-out;
+}
+
+.wf-product-tab:hover {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(15, 108, 189, 0.65);
+}
+
+.wf-product-tab[aria-selected="true"] {
+  background: #fff;
+  border-color: #0f6cbd;
+  box-shadow: inset 0 -3px 0 #0f6cbd,
+    rgba(0, 0, 0, 0.132) 0 1.6px 3.6px 0,
+    rgba(0, 0, 0, 0.11) 0 0.3px 0.9px 0;
+}
+
+.wf-product-tab:focus-visible {
+  outline: 2px solid #0f6cbd;
+  outline-offset: 2px;
+}
+
+.dark .wf-product-tab {
+  background: rgba(41, 41, 41, 0.78);
+  border-color: rgba(255, 255, 255, 0.17);
+  color: #f5f5f5;
+}
+
+.dark .wf-product-tab:hover {
+  background: rgba(55, 55, 55, 0.96);
+  border-color: #4ea3e6;
+}
+
+.dark .wf-product-tab[aria-selected="true"] {
+  background: #292929;
+  border-color: #4ea3e6;
+  box-shadow: inset 0 -3px 0 #4ea3e6,
+    rgba(0, 0, 0, 0.4) 0 1.6px 3.6px 0,
+    rgba(0, 0, 0, 0.3) 0 0.3px 0.9px 0;
+}
+
+.wf-product-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25),
+    rgba(0, 0, 0, 0.18) 0 1px 2px;
+}
+
+.wf-product-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.wf-product-icon--windows11 { background: linear-gradient(145deg, #3cc7ff, #0067c0 68%); }
+.wf-product-icon--windows10 { background: linear-gradient(145deg, #4f8cff, #174ea6 70%); }
+.wf-product-icon--server { background: linear-gradient(145deg, #9b6cff, #6540b8 70%); }
+.wf-product-icon--edge { background: linear-gradient(145deg, #30d5c8, #0078d4 70%); }
+.wf-product-icon--office { background: linear-gradient(145deg, #ff9f43, #d83b01 70%); }
+
+/* Solid channel/kind/status pills must retain opaque text. Quick-filter chips
+   used to fade the whole control to 70%, which blended white into gray and
+   failed contrast in dark mode. These colors now pair with 700-level fills. */
+.wf-solid-badge,
+.dark .wf-solid-badge {
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  .wf-product-tabs {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .wf-product-tab:nth-child(-n + 3) { grid-column: span 2; }
+  .wf-product-tab:nth-child(n + 4) { grid-column: span 3; }
+
+  .wf-product-tab {
+    min-height: 62px;
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px 4px;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+
+  .wf-product-icon {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+
+  .wf-product-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+}
+
+@media (forced-colors: active) {
+  .wf-product-icon {
+    background: ButtonText;
+    color: ButtonFace;
+    forced-color-adjust: none;
+  }
+}
+
 @utility text-balance {
   text-wrap: balance;
 }

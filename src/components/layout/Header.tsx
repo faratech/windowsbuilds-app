@@ -1,7 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils/cn';
-import WF_ICON from '../../assets/wf-icon.png';
+import { windowsBuildsAssetUrl } from '../../utils/assets';
+// Keep this as a real hashed file. The beta release stages assets separately,
+// so inlining would bypass the durable `/js/WindowsBuilds/` URL contract.
+import WF_MARK from '../../assets/wf-mark.svg?no-inline';
 
 interface HeaderProps {
   className?: string;
@@ -23,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ className }) => {
         <div className="flex items-center justify-center h-16">
           <div className="flex items-center gap-3">
             <img
-              src={WF_ICON}
+              src={windowsBuildsAssetUrl(WF_MARK)}
               alt="WindowsForum"
               className="w-9 h-9 rounded-md flex-shrink-0"
               draggable={false}

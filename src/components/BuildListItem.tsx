@@ -79,7 +79,7 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, onClick }) 
           </span>
         </div>
 
-        <div className="md:flex-shrink-0 md:w-20 text-xs text-gray-500 dark:text-gray-500">
+        <div className="md:flex-shrink-0 md:w-20 text-xs text-gray-500 dark:text-gray-300">
           {formatBuildDate(buildDateValue(build), SHORT_DATE)}
         </div>
 

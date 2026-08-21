@@ -77,7 +77,7 @@ describe('channel filter scoping across tabs', () => {
     await buildCount(1);
 
     // ...then switch to Office, where the chip bar is not even rendered.
-    await user.click(screen.getByRole('button', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
 
     // Before the fix this showed 1 of 4: `build_type !== 'beta'` was applied to
     // Office records too, with no visible control to clear it.
@@ -93,7 +93,7 @@ describe('channel filter scoping across tabs', () => {
     await user.click(screen.getByRole('button', { name: /Canary channel build/i }));
     await buildCount(1);
 
-    await user.click(screen.getByRole('button', { name: /Microsoft Edge/ }));
+    await user.click(screen.getByRole('tab', { name: /Microsoft Edge/ }));
     // Default platform filter is Windows, so 2 of the 3 Edge builds qualify —
     // and the canary chip must not narrow that to 1.
     await buildCount(2);
@@ -105,10 +105,10 @@ describe('channel filter scoping across tabs', () => {
     await buildCount(3);
 
     await user.click(screen.getByRole('button', { name: /Beta channel build/i }));
-    await user.click(screen.getByRole('button', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
     await buildCount(4);
 
-    await user.click(screen.getByRole('button', { name: /Windows 11/ }));
+    await user.click(screen.getByRole('tab', { name: /Windows 11/ }));
     await buildCount(1);
     expect(screen.getByRole('button', { name: /Beta channel build/i })).toHaveAttribute('aria-pressed', 'true');
   });
@@ -190,16 +190,52 @@ describe('error handling', () => {
 });
 
 describe('tab navigation', () => {
+  it('exposes one selected tab and its associated panel', async () => {
+    render(<App />);
+    await buildCount(3);
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(5);
+    expect(screen.getByRole('tab', { name: /Windows 11/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Windows 11/ })).toHaveAttribute('aria-controls', 'product-panel');
+    expect(screen.getByRole('tab', { name: /Office 365/ })).toHaveAttribute('aria-selected', 'false');
+
+    const panel = screen.getByRole('tabpanel');
+    expect(panel).toHaveAttribute('id', 'product-panel');
+    expect(panel).toHaveAttribute('aria-labelledby', 'product-tab-windows11');
+  });
+
+  it('supports arrow, Home, and End keyboard navigation', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await buildCount(3);
+
+    const windows11 = screen.getByRole('tab', { name: /Windows 11/ });
+    windows11.focus();
+
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: /Windows 10/ })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: /Windows 10/ })).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{End}');
+    expect(screen.getByRole('tab', { name: /Office 365/ })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: /Office 365/ })).toHaveAttribute('aria-selected', 'true');
+
+    await user.keyboard('{Home}');
+    expect(windows11).toHaveFocus();
+    expect(windows11).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('ignores a click on the already-active tab instead of pushing history', async () => {
     const user = userEvent.setup();
     const pushState = vi.spyOn(window.history, 'pushState');
     render(<App />);
     await buildCount(3);
 
-    await user.click(screen.getByRole('button', { name: /Windows 11/ }));
+    await user.click(screen.getByRole('tab', { name: /Windows 11/ }));
     expect(pushState).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
     expect(pushState).toHaveBeenCalledTimes(1);
   });
 
@@ -217,7 +253,7 @@ describe('tab navigation', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
     await buildCount(4);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -229,7 +265,7 @@ describe('office downloads', () => {
     render(<App />);
     await buildCount(3);
 
-    await user.click(screen.getByRole('button', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
     await buildCount(4);
 
     expect(screen.getByRole('link', { name: /Microsoft 365 Download Center/i }))

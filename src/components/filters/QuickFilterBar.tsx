@@ -40,7 +40,7 @@ export const QuickFilterBar: React.FC<QuickFilterBarProps> = ({ activeChannel, o
             className={cn(
               'px-3 py-1 rounded-md text-sm font-medium transition-all',
               meta.badgeClass,
-              active ? ring : 'opacity-70 hover:opacity-100'
+              active ? ring : 'hover:brightness-110'
             )}
           >
             <span aria-hidden="true" className="mr-1">{meta.icon}</span>

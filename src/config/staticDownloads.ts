@@ -17,6 +17,12 @@ export interface StaticDownload {
 
 export const STALE_AFTER_MONTHS = 4;
 
+// All four URLs returned a successful Microsoft response (200/206) on this
+// date. This describes link availability only; it is deliberately separate
+// from each media item's release date and makes no claim that the archive is
+// the newest Windows release.
+export const STATIC_DOWNLOAD_LINKS_VERIFIED = '2026-08-07';
+
 export const STATIC_DOWNLOADS: StaticDownload[] = [
   {
     title: 'Windows 11 25H2 ISO',

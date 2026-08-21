@@ -21,56 +21,56 @@ export const CHANNEL_META: Record<ReleaseChannel, ChannelMeta> = {
   experimental: {
     label: 'Experimental',
     icon: '🧪',
-    badgeClass: 'bg-amber-500 text-white',
+    badgeClass: 'wf-solid-badge bg-amber-700 text-white',
     order: 1,
     aria: 'Experimental channel build (formerly the Dev Channel)',
   },
   canary: {
     label: 'Canary',
     icon: '🐤',
-    badgeClass: 'bg-red-500 text-white',
+    badgeClass: 'wf-solid-badge bg-red-700 text-white',
     order: 2,
     aria: 'Canary channel build',
   },
   dev: {
     label: 'Dev',
     icon: '⚡',
-    badgeClass: 'bg-orange-500 text-white',
+    badgeClass: 'wf-solid-badge bg-orange-700 text-white',
     order: 3,
     aria: 'Dev channel build (historical; renamed to Experimental in 2026)',
   },
   beta: {
     label: 'Beta',
     icon: '🔬',
-    badgeClass: 'bg-blue-500 text-white',
+    badgeClass: 'wf-solid-badge bg-blue-700 text-white',
     order: 4,
     aria: 'Beta channel build',
   },
   'release-preview': {
     label: 'Release Preview',
     icon: '🚀',
-    badgeClass: 'bg-teal-500 text-white',
+    badgeClass: 'wf-solid-badge bg-teal-700 text-white',
     order: 5,
     aria: 'Release Preview channel build',
   },
   insider: {
     label: 'Insider',
     icon: '🔓',
-    badgeClass: 'bg-purple-500 text-white',
+    badgeClass: 'wf-solid-badge bg-purple-700 text-white',
     order: 6,
     aria: 'Windows Insider build',
   },
   release: {
     label: 'Release',
     icon: '📦',
-    badgeClass: 'bg-green-600 text-white',
+    badgeClass: 'wf-solid-badge bg-green-700 text-white',
     order: 7,
     aria: 'Retail / general availability release build',
   },
   stable: {
     label: 'Stable',
     icon: '✅',
-    badgeClass: 'bg-green-600 text-white',
+    badgeClass: 'wf-solid-badge bg-green-700 text-white',
     order: 7,
     aria: 'Stable release build',
   },
@@ -79,7 +79,7 @@ export const CHANNEL_META: Record<ReleaseChannel, ChannelMeta> = {
 const UNKNOWN_META: ChannelMeta = {
   label: 'Unknown',
   icon: '❔',
-  badgeClass: 'bg-gray-500 text-white',
+  badgeClass: 'wf-solid-badge bg-gray-700 text-white',
   order: 99,
   aria: 'Build channel',
 };
@@ -111,10 +111,10 @@ export interface KindMeta {
   badgeClass: string;
 }
 export const KIND_META: Partial<Record<BuildKind, KindMeta>> = {
-  enablement: { label: 'Enablement', badgeClass: 'bg-indigo-500 text-white' },
-  hotpatch: { label: 'Hotpatch', badgeClass: 'bg-cyan-600 text-white' },
-  lts: { label: 'LTSC', badgeClass: 'bg-slate-600 text-white' },
-  dotnet: { label: '.NET', badgeClass: 'bg-violet-600 text-white' },
+  enablement: { label: 'Enablement', badgeClass: 'wf-solid-badge bg-indigo-700 text-white' },
+  hotpatch: { label: 'Hotpatch', badgeClass: 'wf-solid-badge bg-cyan-700 text-white' },
+  lts: { label: 'LTSC', badgeClass: 'wf-solid-badge bg-slate-700 text-white' },
+  dotnet: { label: '.NET', badgeClass: 'wf-solid-badge bg-violet-700 text-white' },
 };
 export function kindMeta(kind?: BuildKind | null): KindMeta | null {
   return kind ? KIND_META[kind] ?? null : null;
@@ -127,8 +127,8 @@ export interface StatusMeta {
   aria: string;
 }
 export const STATUS_META: Partial<Record<BuildStatus, StatusMeta>> = {
-  eol: { label: 'End of life', badgeClass: 'bg-red-600 text-white', aria: 'End of support' },
-  current: { label: 'Current', badgeClass: 'bg-green-600 text-white', aria: 'Current servicing build' },
+  eol: { label: 'End of life', badgeClass: 'wf-solid-badge bg-red-700 text-white', aria: 'End of support' },
+  current: { label: 'Current', badgeClass: 'wf-solid-badge bg-green-700 text-white', aria: 'Current servicing build' },
 };
 export function statusMeta(status?: BuildStatus | null): StatusMeta | null {
   return status ? STATUS_META[status] ?? null : null;

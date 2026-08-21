@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
+import {
+  Apps24Regular,
+  Desktop24Regular,
+  Globe24Regular,
+  Server24Regular,
+  WindowApps24Regular,
+} from '@fluentui/react-icons';
+import type { FluentIcon } from '@fluentui/react-icons';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Header } from './components/layout/Header';
 import { BuildCard } from './components/BuildCard';
@@ -40,6 +49,19 @@ const TAB_PATHS: Record<TabType, string> = {
   edge: '/builds/edge',
   office365: '/builds/office365',
 };
+
+const PRODUCT_TABS: ReadonlyArray<{
+  id: TabType;
+  label: string;
+  icon: FluentIcon;
+  tone: string;
+}> = [
+  { id: 'windows11', label: 'Windows 11', icon: WindowApps24Regular, tone: 'windows11' },
+  { id: 'windows10', label: 'Windows 10', icon: Desktop24Regular, tone: 'windows10' },
+  { id: 'windowsServer', label: 'Windows Server', icon: Server24Regular, tone: 'server' },
+  { id: 'edge', label: 'Microsoft Edge', icon: Globe24Regular, tone: 'edge' },
+  { id: 'office365', label: 'Office 365', icon: Apps24Regular, tone: 'office' },
+];
 
 const SELECT_CLASS =
   'px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 ' +
@@ -83,6 +105,7 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
+  const tabRefs = useRef<Partial<Record<TabType, HTMLButtonElement | null>>>({});
 
   const rollingDates = isRollingMonth(filters.selectedMonth);
   const dateFilter = useMemo(
@@ -190,6 +213,37 @@ function AppContent() {
     window.history.pushState({ tab: newTab }, '', TAB_PATHS[newTab]);
   }, [activeTab]);
 
+  const handleTabKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, currentTab: TabType) => {
+    const currentIndex = PRODUCT_TABS.findIndex((tab) => tab.id === currentTab);
+    if (currentIndex < 0) return;
+
+    let nextIndex: number;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (currentIndex + 1) % PRODUCT_TABS.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (currentIndex - 1 + PRODUCT_TABS.length) % PRODUCT_TABS.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = PRODUCT_TABS.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    const nextTab = PRODUCT_TABS[nextIndex];
+    if (!nextTab) return;
+    tabRefs.current[nextTab.id]?.focus();
+    handleTabChange(nextTab.id);
+  }, [handleTabChange]);
+
   useEffect(() => {
     updatePageMetadata(activeTab);
   }, [activeTab, updatePageMetadata]);
@@ -265,14 +319,6 @@ function AppContent() {
     });
   }, [builds, searchQuery, filters.buildType, filters.officeChannel, platformFilter, downloadFilter, dateFilter, activeSortBy]);
 
-  const tabs = [
-    { id: 'windows11', label: 'Windows 11', icon: '🪟' },
-    { id: 'windows10', label: 'Windows 10', icon: '💻' },
-    { id: 'windowsServer', label: 'Windows Server', icon: '🖥️' },
-    { id: 'edge', label: 'Microsoft Edge', icon: '🌐' },
-    { id: 'office365', label: 'Office 365', icon: '📊' },
-  ] as const;
-
   const architectures = ['amd64', 'arm64', 'x86'];
   const platforms = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'];
   const downloadFilters = ['All', 'Download Available', 'No Downloads'];
@@ -322,33 +368,48 @@ function AppContent() {
             </p>
           </motion.div>
 
-          <nav className="mb-6" aria-label="Product">
-            <div className="flex flex-wrap gap-2 justify-center">
-              {tabs.map((tab) => (
-                <motion.button
-                  key={tab.id}
-                  type="button"
-                  className={cn(
-                    'px-6 py-3 rounded-lg font-semibold transition-colors duration-100 border',
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
-                    activeTab === tab.id
-                      ? 'bg-blue-500 text-white border-transparent card-shadow'
-                      : 'glass hover:border-blue-400 text-gray-700 dark:text-gray-200',
-                  )}
-                  onClick={() => handleTabChange(tab.id as TabType)}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="text-xl" aria-hidden="true">{tab.icon}</span>
-                    {tab.label}
-                  </span>
-                </motion.button>
-              ))}
+          <nav className="mb-6" aria-label="Product builds">
+            <div className="wf-product-tabs" role="tablist" aria-label="Microsoft product builds">
+              {PRODUCT_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const selected = activeTab === tab.id;
+
+                return (
+                  <motion.button
+                    key={tab.id}
+                    type="button"
+                    id={`product-tab-${tab.id}`}
+                    role="tab"
+                    aria-selected={selected}
+                    aria-controls="product-panel"
+                    tabIndex={selected ? 0 : -1}
+                    ref={(element) => {
+                      tabRefs.current[tab.id] = element;
+                    }}
+                    className="wf-product-tab"
+                    onClick={() => handleTabChange(tab.id)}
+                    onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <span className={`wf-product-icon wf-product-icon--${tab.tone}`} aria-hidden="true">
+                      <Icon />
+                    </span>
+                    <span>{tab.label}</span>
+                  </motion.button>
+                );
+              })}
             </div>
           </nav>
 
-          {activeTab === 'windows11' && <StaticDownloads />}
+          <section
+            id="product-panel"
+            role="tabpanel"
+            aria-labelledby={`product-tab-${activeTab}`}
+            tabIndex={0}
+            aria-busy={query.isLoading}
+            className="focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 rounded-lg"
+          >
+            {activeTab === 'windows11' && <StaticDownloads />}
 
           {isWindowsTab(activeTab) && (
             <div className="mb-4 flex justify-center">
@@ -642,6 +703,7 @@ function AppContent() {
               </motion.div>
             )}
           </AnimatePresence>
+          </section>
         </main>
 
         <footer className="mt-10 pb-10 px-4">
