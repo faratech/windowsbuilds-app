@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Badge, BuildTypeBadge, ChannelBadge } from './ui/Badge';
@@ -37,50 +38,35 @@ function summaryIdentity(build: BuildRecord): { uuid: string; title: string } | 
 }
 
 export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({ build, isOpen, onClose }) => {
-  const [summary, setSummary] = useState('');
-  const [loadingSummary, setLoadingSummary] = useState(false);
-  const [summaryError, setSummaryError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
   const product = buildProduct(build);
   const download = downloadTarget(build);
   const isOffice = isOfficeBuild(build);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  // Windows rows sometimes ship a summary inline; it wins without a fetch.
+  const inlineSummary = isWindowsBuild(build) && build.summary ? build.summary : '';
 
-    if (isWindowsBuild(build) && build.summary) {
-      setSummary(build.summary);
-      setSummaryError(false);
-      return;
-    }
+  // The summary lives in react-query rather than a hand-rolled effect: the
+  // cache dedupes reopenings of the same build (the backend caches for 90
+  // days anyway), abort signals and retry bookkeeping come for free, and no
+  // state has to be reset imperatively when `build` changes.
+  const identity = summaryIdentity(build);
+  const summaryQuery = useQuery({
+    queryKey: ['build-summary', identity?.uuid ?? '', identity?.title ?? '', product, retryNonce],
+    queryFn: ({ signal }) =>
+      apiService.fetchBuildSummary(identity!.uuid, identity!.title, product, signal),
+    enabled: isOpen && !inlineSummary && !!identity?.uuid,
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
+    retry: false,
+  });
 
-    const identity = summaryIdentity(build);
-    if (!identity?.uuid) {
-      setSummary('');
-      return;
-    }
-
-    const controller = new AbortController();
-    setSummary('');
-    setSummaryError(false);
-    setLoadingSummary(true);
-
-    apiService
-      .fetchBuildSummary(identity.uuid, identity.title, product, controller.signal)
-      .then((fetched) => setSummary(fetched))
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        console.error('Failed to fetch summary:', error);
-        setSummary('');
-        setSummaryError(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoadingSummary(false);
-      });
-
-    return () => controller.abort();
-  }, [isOpen, build, product, retryNonce]);
+  const summary = inlineSummary || summaryQuery.data || '';
+  // With the query disabled these would otherwise read as pending/true.
+  const loadingSummary =
+    !inlineSummary && isOpen && !!identity?.uuid && summaryQuery.isPending;
+  const summaryError = !inlineSummary && summaryQuery.isError;
 
   const getBuildTitle = () => {
     if (isEdgeBuild(build)) return `Microsoft Edge ${build.Product || ''}`.trim();

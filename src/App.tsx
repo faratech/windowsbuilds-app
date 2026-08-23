@@ -27,6 +27,12 @@ import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from './
 import { buildKey, buildSearchText, buildTime, comparableVersion, buildDateValue, compareVersions } from './utils/buildRecord';
 import { ALL_DATES, MONTH_OPTIONS, fromControls, isRollingMonth, matchesDateFilter } from './utils/dateFilter';
 import { downloadTarget, OFFICE_DOWNLOAD_CENTER } from './utils/downloads';
+import {
+  parseUrlFilters,
+  serializeUrlFilters,
+  SHARED_URL_PARAMS,
+  type DownloadFilter,
+} from './utils/urlState';
 import { buildsQueryDefaults, isWindowsTab, useBuilds } from './hooks/useBuilds';
 
 const getSortBy = (sortBy: SortBy, activeTab: TabType): SortBy => {
@@ -93,17 +99,25 @@ function AppContent() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
-  const [filters, setFilters] = useState<FilterOptions>({
-    selectedMonth: 'Last 60 Days',
-    selectedYear: ALL_DATES,
-    selectedArch: 'amd64',
-    excludeInsider: false,
-    sortBy: 'build-desc',
-  });
-  const [platformFilter, setPlatformFilter] = useState('Windows');
-  const [downloadFilter, setDownloadFilter] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Filter state is seeded from the query string so a shared/bookmarked URL
+  // restores the exact view. Parsing validates every value; anything unknown
+  // falls back to the same defaults the raw useState calls used.
+  const initialUrl = useMemo(() => parseUrlFilters(window.location.search), []);
+  const [filters, setFilters] = useState<FilterOptions>(() => ({
+    selectedMonth: initialUrl.month,
+    // A rolling window ignores the year outright — mirror the select's rule.
+    selectedYear: isRollingMonth(initialUrl.month) ? ALL_DATES : initialUrl.year,
+    selectedArch: initialUrl.arch,
+    excludeInsider: initialUrl.insider,
+    sortBy: getSortBy(initialUrl.sortBy, activeTab),
+    buildType: initialUrl.buildType as FilterOptions['buildType'],
+    officeChannel: initialUrl.officeChannel,
+  }));
+  const [platformFilter, setPlatformFilter] = useState(initialUrl.platform);
+  const [downloadFilter, setDownloadFilter] = useState<DownloadFilter>(initialUrl.downloadFilter);
+  const [searchQuery, setSearchQuery] = useState(initialUrl.searchQuery);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(initialUrl.viewMode);
   const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
   const tabRefs = useRef<Partial<Record<TabType, HTMLButtonElement | null>>>({});
 
@@ -210,7 +224,17 @@ function AppContent() {
     // new one, describing a build that is no longer in the list.
     setSelectedBuild(null);
     setActiveTab(newTab);
-    window.history.pushState({ tab: newTab }, '', TAB_PATHS[newTab]);
+
+    // Carry only cross-tab params onto the new section URL; per-tab selects
+    // (platform, channel, download availability, channel chip) start fresh.
+    const incoming = new URLSearchParams(window.location.search);
+    const shared = new URLSearchParams();
+    for (const key of SHARED_URL_PARAMS) {
+      const value = incoming.get(key);
+      if (value) shared.set(key, value);
+    }
+    const qs = shared.toString();
+    window.history.pushState({ tab: newTab }, '', `${TAB_PATHS[newTab]}${qs ? `?${qs}` : ''}`);
   }, [activeTab]);
 
   const handleTabKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, currentTab: TabType) => {
@@ -251,12 +275,51 @@ function AppContent() {
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       setSelectedBuild(null);
+
+      // History entries carry their own query string; restore the filters the
+      // URL describes rather than keeping whatever is currently on screen.
+      const parsed = parseUrlFilters(window.location.search);
+      setFilters((current) => ({
+        ...current,
+        selectedMonth: parsed.month,
+        selectedYear: isRollingMonth(parsed.month) ? ALL_DATES : parsed.year,
+        selectedArch: parsed.arch,
+        excludeInsider: parsed.insider,
+        sortBy: parsed.sortBy,
+        buildType: parsed.buildType as FilterOptions['buildType'],
+        officeChannel: parsed.officeChannel,
+      }));
+      setPlatformFilter(parsed.platform);
+      setDownloadFilter(parsed.downloadFilter);
+      setSearchQuery(parsed.searchQuery);
+      setViewMode(parsed.viewMode);
+
       setActiveTab(event.state?.tab ?? getInitialTab());
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [getInitialTab]);
+
+  // Keep the address bar in sync with filter state. replaceState (not push)
+  // so tweaking a dropdown doesn't spam history — tab changes above are the
+  // navigation events.
+  useEffect(() => {
+    const qs = serializeUrlFilters({
+      arch: filters.selectedArch,
+      month: filters.selectedMonth,
+      year: filters.selectedYear,
+      insider: filters.excludeInsider,
+      sortBy: filters.sortBy,
+      buildType: isWindowsTab(activeTab) ? filters.buildType : undefined,
+      officeChannel: activeTab === 'office365' ? (filters.officeChannel ?? undefined) : undefined,
+      platform: activeTab === 'edge' ? platformFilter : 'Windows',
+      downloadFilter: activeTab === 'edge' ? downloadFilter : 'All',
+      searchQuery,
+      viewMode,
+    });
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs}`);
+  }, [activeTab, filters, platformFilter, downloadFilter, searchQuery, viewMode]);
 
   const isEdgeTab = activeTab === 'edge';
   const isOfficeTab = activeTab === 'office365';
@@ -268,7 +331,10 @@ function AppContent() {
   );
 
   const filteredBuilds = useMemo(() => {
-    const now = Date.now();
+    // Anchor relative-date filtering to when the dataset was fetched rather
+    // than the wall clock: it keeps renders pure and makes "last N days"
+    // describe the data actually on screen (refreshed hourly by the query).
+    const now = query.dataUpdatedAt;
     const needle = searchQuery.trim().toLowerCase();
 
     const matches = builds.filter((build) => {
@@ -317,7 +383,7 @@ function AppContent() {
         default: return 0;
       }
     });
-  }, [builds, searchQuery, filters.buildType, filters.officeChannel, platformFilter, downloadFilter, dateFilter, activeSortBy]);
+  }, [builds, query.dataUpdatedAt, searchQuery, filters.buildType, filters.officeChannel, platformFilter, downloadFilter, dateFilter, activeSortBy]);
 
   const architectures = ['amd64', 'arm64', 'x86'];
   const platforms = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'];
@@ -592,7 +658,7 @@ function AppContent() {
                   <select
                     aria-label="Filter by download availability"
                     value={downloadFilter}
-                    onChange={(e) => setDownloadFilter(e.target.value)}
+                    onChange={(e) => setDownloadFilter(e.target.value as DownloadFilter)}
                     className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {downloadFilters.map((filter) => (

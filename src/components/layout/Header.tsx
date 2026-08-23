@@ -31,10 +31,13 @@ export const Header: React.FC<HeaderProps> = ({ className }) => {
               className="w-9 h-9 rounded-md flex-shrink-0"
               draggable={false}
             />
+            {/* Not an <h1>: the XenForo page shell already renders the page's
+                single h1 ("Windows, Edge & Office Builds Tracker…"); a second
+                one here diluted the document outline. */}
             <div className="text-center sm:text-left">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
+              <div className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
                 Windows Update Tracker
-              </h1>
+              </div>
               <p className="text-xs text-gray-600 dark:text-gray-400">
                 Windows 11, Windows 10, Edge &amp; Office Updates
               </p>
