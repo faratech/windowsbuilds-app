@@ -39,7 +39,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^6.1.0",
     "jsdom": "^30.0.1",
-    "oxlint": "^1.79.0",
+    "oxlint": "^1.80.0",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
     "terser": "^5.50.0",
