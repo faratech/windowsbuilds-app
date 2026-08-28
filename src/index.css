@@ -1,6 +1,59 @@
-@import "tailwindcss";
+/*
+ * Granular Tailwind imports, deliberately WITHOUT preflight: this stylesheet
+ * loads globally on a XenForo page, and preflight's universal reset
+ * (`* { margin: 0; padding: 0 }`) squeezed the forum's own navbar/sidebar —
+ * icons lost their spacing site-chrome-wide (reported 2026-08-28; same fix as
+ * win11store_app). The equivalent reset is re-applied below, scoped to the app
+ * root and the modal portal layer only.
+ */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 
 @custom-variant dark (&:where(.dark, .dark *, [data-wf-theme="dark"], [data-wf-theme="dark"] *));
+
+@layer base {
+  /* Preflight, scoped. :where() keeps specificity at zero so utilities still
+     win. `border: 0 solid` is load-bearing — Tailwind's border-width
+     utilities assume it. */
+  :where(#windows-builds-root, .wf-modal-layer),
+  :where(#windows-builds-root, .wf-modal-layer) *,
+  :where(#windows-builds-root, .wf-modal-layer) *::before,
+  :where(#windows-builds-root, .wf-modal-layer) *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+  :where(#windows-builds-root, .wf-modal-layer) :is(h1, h2, h3, h4, h5, h6) {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  :where(#windows-builds-root, .wf-modal-layer) :is(ul, ol) {
+    list-style: none;
+  }
+  :where(#windows-builds-root, .wf-modal-layer) a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  :where(#windows-builds-root, .wf-modal-layer) :is(img, svg, video) {
+    display: block;
+    vertical-align: middle;
+  }
+  :where(#windows-builds-root, .wf-modal-layer) :is(img, video) {
+    max-width: 100%;
+    height: auto;
+  }
+  :where(#windows-builds-root, .wf-modal-layer) :is(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+    background-color: transparent;
+  }
+  :where(#windows-builds-root, .wf-modal-layer) button {
+    cursor: pointer;
+    appearance: none;
+  }
+}
 
 /* =========================================================================
    WindowsForum.com design system — token remap + foundations

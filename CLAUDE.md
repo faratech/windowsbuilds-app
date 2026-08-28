@@ -166,3 +166,5 @@ cd /web/public_html && php cmd.php xf:rebuild-master-data
 4. **Template not updating** — rebuild XenForo master data.
 5. **Dates off by hours** — something bypassed `utils/dates.ts`.
 6. **Width constraints** — check the template's CSS overrides.
+7. **Forum navbar/sidebar looks "squeezed" (icons glued to text) on /builds/** — someone reintroduced `@import "tailwindcss"` whole. This stylesheet loads globally on the XF page and preflight's `* { margin: 0 }` flattens the forum chrome (bug fixed 2026-08-28). `src/index.css` must import theme+utilities only, with preflight re-applied scoped to `#windows-builds-root` + `.wf-modal-layer`; any new portal wrapper joins that scope list. Same rule in win11store_app.
+8. **Template edit deployed (addon-rebuild ran, compiled files fresh) but pages still serve the old markup** — the httpjet capsule snapshot holds the old `<head>`/shell and survives `purge_all`. Purge it explicitly: `curl 'http://127.0.0.1/lscache_purge.php?tag=xf_capsule,xf_capsule_shell' -H 'Host: windowsforum.com'`.
