@@ -120,3 +120,28 @@ export interface FilterOptions {
   officeChannel?: string;
   sortBy: SortBy;
 }
+
+/** One version line of a Windows family as served by /api/builds/lines/<family>. */
+export type LineStatus = 'preview' | 'silicon' | 'mainstream' | 'supported' | 'eol' | 'extended';
+
+export interface VersionLine {
+  family: string;
+  family_label: string;
+  tag: string;
+  status: LineStatus | null;
+  note: string | null;
+  url: string;
+  count: number;
+  latest: {
+    build: string;
+    title: string;
+    created: number;
+    created_iso: string | null;
+    build_type: ReleaseChannel | string;
+    channel_label: string;
+    kind: BuildKind | null;
+    kb: string | null;
+    uuid: string;
+    url: string;
+  };
+}

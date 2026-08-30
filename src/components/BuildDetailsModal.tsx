@@ -12,6 +12,7 @@ import { buildDateValue, buildProduct } from '../utils/buildRecord';
 import { formatBuildDate, LONG_DATE } from '../utils/dates';
 import { downloadTarget, openExternal, OFFICE_DOWNLOAD_CENTER } from '../utils/downloads';
 import type { EdgeArtifact } from '../types';
+import { buildPermalink } from '../utils/permalink';
 
 interface BuildDetailsModalProps {
   build: BuildRecord;
@@ -42,6 +43,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({ build, isO
 
   const product = buildProduct(build);
   const download = downloadTarget(build);
+  const permalink = buildPermalink(build);
   const isOffice = isOfficeBuild(build);
 
   // Windows rows sometimes ship a summary inline; it wins without a fetch.
@@ -298,6 +300,16 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({ build, isO
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
+          {permalink && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                window.location.href = permalink;
+              }}
+            >
+              Build page
+            </Button>
+          )}
           {download && (
             <Button variant="primary" onClick={() => openExternal(download.url)}>
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">

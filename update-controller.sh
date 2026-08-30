@@ -53,9 +53,15 @@ for k in entry.get('imports', []):
     f = m.get(k, {}).get('file')
     if f:
         keep.append(f)
+vendor = ''
+for k in entry.get('imports', []):
+    f = m.get(k, {}).get('file') or ''
+    if os.path.basename(f).startswith('vendor-'):
+        vendor = os.path.basename(f)
 print(os.path.basename(entry['file']))
 print(os.path.basename(css) if css else '')
 print(' '.join(os.path.basename(f) for f in keep))
+print(vendor)
 PY
 }
 
@@ -63,6 +69,7 @@ mapfile -t MF < <(read_manifest)
 JS_FILE="${MF[0]}"
 CSS_FILE="${MF[1]}"
 KEEP="${MF[2]}"
+VENDOR_FILE="${MF[3]:-}"
 
 if [ -z "$JS_FILE" ] || [ -z "$CSS_FILE" ]; then
     echo "❌ Could not resolve entry js/css from manifest"
@@ -116,8 +123,11 @@ cp -p "$CONTROLLER_PATH" "$BACKUP_PATH"
 CANDIDATE="$(mktemp "${BACKUP_DIR}/Builds.php.candidate.XXXXXX")"
 trap 'rm -f "$CANDIDATE"' EXIT
 
+# The vendor chunk is rewritten too so the template can modulepreload it
+# (otherwise the browser only discovers it after parsing the entry chunk).
 sed -e "s|'css' => '/js/WindowsBuilds/index-[^']*'|'css' => '/js/WindowsBuilds/$CSS_FILE'|" \
     -e "s|'js' => '/js/WindowsBuilds/index-[^']*'|'js' => '/js/WindowsBuilds/$JS_FILE'|" \
+    -e "s|'vendor' => '/js/WindowsBuilds/vendor-[^']*'|'vendor' => '/js/WindowsBuilds/$VENDOR_FILE'|" \
     "$CONTROLLER_PATH" > "$CANDIDATE"
 
 # The sed above is silent when its pattern does not match. Assert the result.

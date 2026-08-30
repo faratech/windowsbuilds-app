@@ -23,6 +23,7 @@ import { Badge } from './components/ui/Badge';
 import { cn } from './utils/cn';
 import type { TabType, FilterOptions, SortBy } from './types';
 import { QuickFilterBar } from './components/filters/QuickFilterBar';
+import { LatestByVersion } from './components/LatestByVersion';
 import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from './utils/typeGuards';
 import { buildKey, buildSearchText, buildTime, comparableVersion, buildDateValue, compareVersions } from './utils/buildRecord';
 import { ALL_DATES, MONTH_OPTIONS, fromControls, isRollingMonth, matchesDateFilter } from './utils/dateFilter';
@@ -68,6 +69,8 @@ const PRODUCT_TABS: ReadonlyArray<{
   { id: 'edge', label: 'Microsoft Edge', icon: Globe24Regular, tone: 'edge' },
   { id: 'office365', label: 'Office 365', icon: Apps24Regular, tone: 'office' },
 ];
+
+const PAGE_SIZE = 30;
 
 const SELECT_CLASS =
   'px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 ' +
@@ -116,7 +119,10 @@ function AppContent() {
   }));
   const [platformFilter, setPlatformFilter] = useState(initialUrl.platform);
   const [downloadFilter, setDownloadFilter] = useState<DownloadFilter>(initialUrl.downloadFilter);
-  const [searchQuery, setSearchQuery] = useState(initialUrl.searchQuery);
+  // /builds/<family>/<tag>/ pages arrive with data-tag on the mount point; the
+  // tag seeds the search box so the list opens on that version line.
+  const initialTag = useMemo(() => document.getElementById('windows-builds-root')?.dataset.tag ?? null, []);
+  const [searchQuery, setSearchQuery] = useState(initialUrl.searchQuery || initialTag || '');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(initialUrl.viewMode);
   const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
   const tabRefs = useRef<Partial<Record<TabType, HTMLButtonElement | null>>>({});
@@ -315,11 +321,13 @@ function AppContent() {
       officeChannel: activeTab === 'office365' ? (filters.officeChannel ?? undefined) : undefined,
       platform: activeTab === 'edge' ? platformFilter : 'Windows',
       downloadFilter: activeTab === 'edge' ? downloadFilter : 'All',
-      searchQuery,
+      // The version line seeded from /builds/<family>/<tag>/ is already in
+      // the path; only a query the visitor typed belongs in ?q=.
+      searchQuery: initialTag && searchQuery.trim().toUpperCase() === initialTag.toUpperCase() ? '' : searchQuery,
       viewMode,
     });
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs}`);
-  }, [activeTab, filters, platformFilter, downloadFilter, searchQuery, viewMode]);
+  }, [activeTab, filters, platformFilter, downloadFilter, searchQuery, viewMode, initialTag]);
 
   const isEdgeTab = activeTab === 'edge';
   const isOfficeTab = activeTab === 'office365';
@@ -329,6 +337,15 @@ function AppContent() {
     () => Array.from(new Set(builds.filter(isOfficeBuild).map((b) => b.channel).filter(Boolean))).sort(),
     [builds],
   );
+
+  // Render in pages of 30: 80+ cards at once is ~3,800 DOM nodes and most of
+  // the main-thread cost on mobile; the rest arrive on "Show more". The cap
+  // is keyed to the list's inputs so any filter change starts over without
+  // an effect.
+  const listSignature = JSON.stringify([activeTab, filters, platformFilter, downloadFilter, searchQuery]);
+  const [visible, setVisible] = useState({ signature: listSignature, count: PAGE_SIZE });
+  const visibleCount = visible.signature === listSignature ? visible.count : PAGE_SIZE;
+  const showMore = () => setVisible({ signature: listSignature, count: visibleCount + PAGE_SIZE });
 
   const filteredBuilds = useMemo(() => {
     // Anchor relative-date filtering to when the dataset was fetched rather
@@ -426,11 +443,11 @@ function AppContent() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
-            <h2 className="text-4xl font-bold mb-3 text-blue-600 dark:text-blue-400">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-blue-700 dark:text-blue-300">
               Real-Time Windows Updates
             </h2>
-            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Stay informed about the latest Windows, Microsoft Edge, and Office 365 builds with real-time updates and detailed information.
+            <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 max-w-2xl mx-auto">
+              Every Windows, Edge and Office build as it ships — each one with a permanent page.
             </p>
           </motion.div>
 
@@ -690,6 +707,8 @@ function AppContent() {
             </div>
           </Card>
 
+          {isWindowsTab(activeTab) && <LatestByVersion tab={activeTab} activeTag={initialTag} />}
+
           {isWindowsTab(activeTab) && (
             <QuickFilterBar
               activeChannel={filters.buildType ?? null}
@@ -758,7 +777,7 @@ function AppContent() {
                 )}
 
                 <div className={cn(viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-2')}>
-                  {filteredBuilds.map((build, index) =>
+                  {filteredBuilds.slice(0, visibleCount).map((build, index) =>
                     viewMode === 'grid' ? (
                       <BuildCard key={buildKey(build, index)} build={build} onClick={() => setSelectedBuild(build)} />
                     ) : (
@@ -766,6 +785,13 @@ function AppContent() {
                     ),
                   )}
                 </div>
+                {filteredBuilds.length > visibleCount && (
+                  <div className="mt-6 text-center">
+                    <Button variant="outline" onClick={showMore}>
+                      Show more ({filteredBuilds.length - visibleCount} remaining)
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

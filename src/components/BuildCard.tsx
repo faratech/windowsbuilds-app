@@ -8,6 +8,7 @@ import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from '..
 import { buildDateValue, buildProduct } from '../utils/buildRecord';
 import { formatBuildDate, SHORT_DATE } from '../utils/dates';
 import { downloadTarget, openExternal } from '../utils/downloads';
+import { buildPermalink } from '../utils/permalink';
 
 interface BuildCardProps {
   build: BuildRecord;
@@ -19,6 +20,7 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, onClick }) => {
   // the build it was handed even if the tab changes beneath it.
   const product = buildProduct(build);
   const download = downloadTarget(build);
+  const permalink = buildPermalink(build);
 
   const getIcon = () => {
     switch (product) {
@@ -88,7 +90,15 @@ export const BuildCard: React.FC<BuildCardProps> = ({ build, onClick }) => {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="text-lg group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                {getTitle()}
+                {permalink ? (
+                  // The title is the build's permanent page; the card body still
+                  // opens the quick-look modal.
+                  <a href={permalink} className="hover:underline" onClick={(e) => e.stopPropagation()}>
+                    {getTitle()}
+                  </a>
+                ) : (
+                  getTitle()
+                )}
               </CardTitle>
               <CardDescription className="mt-1">
                 {getVersion() && <span className="font-mono text-sm">{getVersion()}</span>}

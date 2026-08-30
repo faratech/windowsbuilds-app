@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Badge, BuildTypeBadge } from './ui/Badge';
 import { Button } from './ui/Button';
+import { buildPermalink } from '../utils/permalink';
 import { cn } from '../utils/cn';
 import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from '../utils/typeGuards';
 import { buildDateValue } from '../utils/buildRecord';
@@ -15,6 +16,7 @@ interface BuildListItemProps {
 
 export const BuildListItem: React.FC<BuildListItemProps> = ({ build, onClick }) => {
   const download = downloadTarget(build);
+  const permalink = buildPermalink(build);
 
   const getTitle = () => {
     if (isEdgeBuild(build)) return `Edge ${build.Product || ''}`.trim();
@@ -52,7 +54,13 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, onClick }) 
       onClick={onClick}
     >
       <div className="min-w-0 md:flex-shrink-0 md:w-48 lg:w-56 xl:w-64">
-        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{title}</p>
+        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+          {permalink ? (
+            <a href={permalink} className="hover:underline" onClick={(e) => e.stopPropagation()}>{title}</a>
+          ) : (
+            title
+          )}
+        </p>
         <p className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
           {getBuildNumber()}
         </p>

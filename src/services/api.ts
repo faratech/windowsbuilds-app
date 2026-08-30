@@ -1,4 +1,10 @@
-import type { WindowsBuild, EdgeBuild, OfficeBuild, BuildListResponse, TabType } from '../types';
+import type { WindowsBuild, EdgeBuild, OfficeBuild, BuildListResponse, TabType, VersionLine } from '../types';
+
+const LINE_FAMILY: Partial<Record<TabType, string>> = {
+  windows11: 'windows11',
+  windows10: 'windows10',
+  windowsServer: 'windowsserver',
+};
 import { toQueryParams, type DateFilter } from '../utils/dateFilter';
 
 const API_BASE = (import.meta.env.VITE_API_BASE || '/api/builds').replace(/\/+$/, '');
@@ -137,6 +143,14 @@ export interface EdgeQuery {
 }
 
 export const apiService = {
+  /** Newest OS build per version line (24H2, 25H2, 26H1 ...) with the line's status note. */
+  async fetchLines(tab: TabType, signal?: AbortSignal): Promise<VersionLine[]> {
+    const family = LINE_FAMILY[tab];
+    if (!family) return [];
+    const payload = await fetchJson<{ lines?: unknown }>(`/lines/${family}`, new URLSearchParams(), { signal });
+    return Array.isArray(payload.lines) ? (payload.lines as VersionLine[]) : [];
+  },
+
   async fetchWindowsBuilds(query: WindowsQuery, signal?: AbortSignal): Promise<WindowsBuild[]> {
     const params = new URLSearchParams({
       version: WINDOWS_VERSION[query.tab] ?? 'Windows 11',
