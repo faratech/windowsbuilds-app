@@ -116,6 +116,24 @@ Channel filtering is client-side.
   and forms the backend Redis cache key `{product}build_summary:{uuid}`. Renaming
   those strings orphans every cached summary.
 
+## Permalinks and version lines (2026-08-30)
+
+Every Windows build has a permanent page served by XenForo, not the SPA:
+`/builds/<family>/<build>/` (`utils/permalink.ts::buildPermalink`). Card and list titles link
+to it; the modal has a "Build page" button. `/builds/<family>/<tag>/` (24h2, server 2025)
+renders the index with `data-tag` on the mount point, which seeds the search box
+(`initialTag` in App.tsx) without echoing into `?q=`.
+
+`components/LatestByVersion.tsx` is the "Latest per version" strip: it reads
+`GET /api/builds/lines/<family>` (`apiService.fetchLines`) — newest OS build per line over
+the whole feed, with the status chip from the server's `build_lines.json` — never the loaded
+30-day window. `utils/permalink.ts` mirrors `BASE_TAGS` in `fastapi_app/build_detail.py`
+and `Builds::tagForBase()` in the add-on; change all three together.
+
+The list renders 30 builds at a time ("Show more") — 80+ cards was ~3,800 DOM nodes and most
+of the mobile main-thread cost. `update-controller.sh` also rewrites a `'vendor' =>` line in
+the controller so the template can `modulepreload` the vendor chunk.
+
 ## Component Architecture
 
 - `App.tsx` — tabs, filters, list/grid, history sync
