@@ -17,13 +17,31 @@ export interface StaticDownload {
 
 export const STALE_AFTER_MONTHS = 4;
 
-// All four URLs returned a successful Microsoft response (200/206) on this
+// All download URLs returned a successful Microsoft response (200/206) on this
 // date. This describes link availability only; it is deliberately separate
 // from each media item's release date and makes no claim that the archive is
 // the newest Windows release.
-export const STATIC_DOWNLOAD_LINKS_VERIFIED = '2026-08-07';
+export const STATIC_DOWNLOAD_LINKS_VERIFIED = '2026-09-12';
 
 export const STATIC_DOWNLOADS: StaticDownload[] = [
+  {
+    title: 'KB5121794 — Windows 11 26H2 Enablement Package',
+    description: 'Flips a fully-updated 24H2 (26100) or 25H2 (26200) device with KB5120998 to 26H2 (26300)',
+    architecture: 'x64',
+    type: 'update',
+    url: 'https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/94520a88-858f-4832-a57d-7211f6d84a4e/public/Windows11.0-KB5121794-x64_5e20a3cce48d6611b16bdec42b07167f5456586a.msu',
+    releasedDate: '2026-08-28',
+    size: '173 KB',
+  },
+  {
+    title: 'KB5121794 — Windows 11 26H2 Enablement Package',
+    description: 'Flips a fully-updated 24H2 (26100) or 25H2 (26200) device with KB5120998 to 26H2 (26300)',
+    architecture: 'arm64',
+    type: 'update',
+    url: 'https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/9d8dc3d0-9cbf-4eb1-9411-722e3e6a19b3/public/Windows11.0-KB5121794-arm64_77a76caf2d362bb293a4d18058388f2717365abe.msu',
+    releasedDate: '2026-08-28',
+    size: '175 KB',
+  },
   {
     title: 'Windows 11 25H2 ISO',
     description: 'Build 26200.6584 (September 2025 servicing release)',
