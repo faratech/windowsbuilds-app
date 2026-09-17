@@ -34,3 +34,13 @@ coverage
 !tsconfig.app.json
 !tsconfig.node.json
 !.oxlintrc.json
+
+# Local production/debug artifacts
+.env.production
+.playwright-mcp/
+
+# Local deployment helpers (kept outside the public source tree)
+CLAUDE.md
+build-and-update.sh
+start.sh
+update-controller.sh

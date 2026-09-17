@@ -54,15 +54,9 @@ npm run preview         # serve the production build locally
 
 ## API Configuration
 
-The builds API lives under `/api/builds/*` on the FastAPI service:
-
-| Environment | `VITE_API_BASE` | Source |
-|---|---|---|
-| dev | `/api/builds` (proxied to `http://localhost:8000`) | `.env` / `.env.example` |
-| production | `https://search.windowsforum.com/api/builds` | `.env.production` |
-
-The same-origin `https://windowsforum.com/api/builds/*` path is **not** the
-builds API — it hits XenForo's own API and answers `no_api_key_in_request`.
+Set `VITE_API_BASE` to the builds API root. It defaults to `/api/builds`, which
+works when the app is served behind a same-origin reverse proxy. For local
+development, the Vite server proxies `/api` to `http://localhost:8000`.
 
 Endpoints and the parameters each one actually accepts:
 
@@ -91,35 +85,12 @@ rather than as an empty "No builds found" state.
 
 Always go through `src/utils/dates.ts`.
 
-## Deployment
+## Production integration
 
-```bash
-npm run build:full      # build → copy assets → activate controller
-```
-
-That runs, in order:
-
-1. `npm run build` — typecheck and bundle into `dist/`
-2. `npm run deploy` — copy `dist/assets/*` into `/web/public_html/js/WindowsBuilds/`
-3. `./update-controller.sh` — rewrite the hashed asset paths in the XenForo controller
-
-`update-controller.sh` resolves the entry chunk from `dist/.vite/manifest.json`,
-refuses to activate unless every imported chunk is on disk, stages the rewrite in
-a temp file, gates it behind `php -l`, and preserves the controller's owner and
-mode. Backups land in `/var/backups/windowsbuilds/`.
-
-Superseded assets are **kept** so opcache can finish serving the previous
-controller, which still references them. Once `/builds/` is confirmed healthy:
-
-```bash
-./update-controller.sh --prune
-```
-
-If templates or routes changed:
-
-```bash
-cd /web/public_html && php cmd.php xf:rebuild-master-data
-```
+`npm run build` creates a standalone `dist/` bundle. Hosting integrations are
+responsible for copying that bundle and mounting the API; deployment scripts and
+server-specific controller updates are intentionally kept outside this public
+source tree.
 
 ## Project Structure
 
@@ -163,4 +134,4 @@ Canary into it in 2026; `canary` and `dev` remain as historical labels.
 
 ## License
 
-MIT
+No open-source license has been selected yet. Until a license is added, copyright remains with the project owner and reuse is not granted.
