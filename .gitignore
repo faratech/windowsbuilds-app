@@ -34,6 +34,8 @@ coverage
 !tsconfig.app.json
 !tsconfig.node.json
 !.oxlintrc.json
+!xenforo-addon/**/*.json
+!xenforo-addon/CLAUDE.md
 
 # Local production/debug artifacts
 .env.production

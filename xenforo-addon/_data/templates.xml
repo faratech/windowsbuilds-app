@@ -1,0 +1,1052 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates>
+    <template title="windowsbuilds_builds" type="public" version_id="1000020" version_string="1.0.0 Beta 1" addon_id="WindowsBuilds">
+        <![CDATA[<xf:title>{$meta.title}</xf:title>
+
+<xf:head option="wbThemeBoot">
+    <script>
+    // Resolve dark mode BEFORE first paint. The React ThemeContext applies
+    // `.dark` only after mount, so without this a dark-mode visitor watched
+    // the light wallpaper/#eff5f6 shell paint first — the "white flash"
+    // (2026-08-28). Mirrors ThemeContext.resolveActualMode(); keep in step.
+    (function () {
+        var d = document.documentElement;
+        try {
+            var mode = null;
+            var cs = (d.getAttribute('data-color-scheme') || '').toLowerCase();
+            if (cs === 'light' || cs === 'dark') mode = cs;
+            if (!mode) {
+                var v = (d.getAttribute('data-variation') || '').toLowerCase();
+                if (v === 'alternate') mode = 'dark';
+                else if (v === 'default') mode = 'light';
+            }
+            if (!mode) {
+                var prefix = d.getAttribute('data-cookie-prefix') || 'xf_';
+                var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + prefix + 'style_variation=([^;]*)'))
+                    || document.cookie.match(/(?:^|;\s*)style_variation=([^;]*)/);
+                if (m) {
+                    var val = decodeURIComponent(m[1]);
+                    if (val === 'alternate') mode = 'dark';
+                    else if (val === 'default') mode = 'light';
+                }
+            }
+            if (!mode) mode = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+            if (mode === 'dark') d.classList.add('dark'); else d.classList.remove('dark');
+            d.setAttribute('data-wf-theme', mode);
+            d.style.colorScheme = mode;
+        } catch (e) {}
+    })();
+    </script>
+</xf:head>
+
+<xf:head option="wbSeoMeta">
+    <meta name="description" content="{$meta.description}" />
+    <meta name="keywords" content="{$meta.keywords}" />
+    <link rel="canonical" href="{$meta.canonical}" />
+    <meta property="og:title" content="{$meta.title}" />
+    <meta property="og:description" content="{$meta.description}" />
+    <meta property="og:url" content="{$meta.canonical}" />
+    <meta property="twitter:title" content="{$meta.title}" />
+    <meta property="twitter:description" content="{$meta.description}" />
+</xf:head>
+<xf:head option="wbSeoJsonLd"><script type="application/ld+json">{$seoJsonLd|raw}</script></xf:head>
+
+<xf:head option="wbPreload">
+    <xf:if is="$reactAssets.vendor"><link rel="modulepreload" href="{{ $reactAssets.vendor }}" /></xf:if>
+    <link rel="modulepreload" href="{{ $reactAssets.js }}" />
+    <link rel="preconnect" href="https://search.windowsforum.com" crossorigin />
+</xf:head>
+<xf:head option="css">
+    <link rel="stylesheet" href="{{ $reactAssets.css }}" />
+    <style>
+        /* Widen the forum shell so the tracker can breathe. Scoped to this
+           page only (XF compiles per-template), but the selectors are global
+           elements — kept minimal deliberately. */
+        .p-pageWrapper { max-width: 100% !important; }
+        .p-body-inner {
+            max-width: 1800px !important;
+            width: 95% !important;
+            margin: 0 auto !important;
+            padding: 0 20px !important;
+        }
+        .p-body-main { flex: 1 1 auto !important; max-width: none !important; width: 100% !important; }
+        .p-body-content,
+        .p-body-pageContent { max-width: 100% !important; width: 100% !important; }
+        /* Narrower-than-stock nav, but ONLY expanded: the wf4 shell collapses
+           the nav to a 64px rail by adding .is-active, and an unconditional
+           !important pin here kept the < toggle from shrinking it (bug,
+           2026-08-28). */
+        .p-sideNav:not(.is-active) { flex: 0 0 200px !important; }
+        #windows-builds-root { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; min-height: 600px; contain: layout; }
+
+        /* Server-rendered tracker content. It lives INSIDE the React mount
+           point: visible immediately (and to crawlers/no-JS visitors), then
+           replaced wholesale once the app hydrates. Colors ride XF theme vars
+           so both light and dark variations stay legible. */
+        .wb-ssr {
+            max-width: 1100px;
+            margin: 1.5rem auto 2rem;
+            padding: 1rem 1.25rem;
+            font-size: 0.95rem;
+            color: var(--xf-textColor, #1d1d1d);
+            min-height: 600px;
+            contain: layout;
+        }
+        .wb-ssr h2 {
+            font-size: 1.4rem;
+            margin: 0.75rem 0;
+            font-weight: 600;
+            color: var(--xf-textColor, #1d1d1d);
+        }
+        .wb-ssr-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            justify-content: center;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--xf-borderColor, #e5e5e5);
+            font-size: 0.9rem;
+        }
+        .wb-ssr-nav a {
+            color: var(--xf-linkColor, #2c5aa0);
+            text-decoration: none;
+        }
+        .wb-ssr-nav a:hover { text-decoration: underline; }
+        .wb-ssr-nav a[aria-current="page"] { font-weight: 700; }
+        .wb-ssr-list {
+            list-style: none;
+            padding: 0;
+            margin: 1rem 0;
+            text-align: left;
+        }
+        .wb-ssr-list li {
+            padding: 0.55rem 0;
+            border-bottom: 1px solid var(--xf-borderColorLight, #eee);
+        }
+        .wb-ssr-list a {
+            color: var(--xf-linkColor, #2c5aa0);
+            font-weight: 600;
+        }
+        .wb-ssr-meta {
+            color: var(--xf-textColorMuted, #666);
+            font-size: 0.85rem;
+        }
+        .wb-ssr-note {
+            color: var(--xf-textColorMuted, #666);
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+        .wb-ssr-lines {
+            margin: 0.25rem 0 0.75rem;
+            font-size: 0.9rem;
+            color: var(--xf-textColorMuted, #666);
+        }
+        .wb-ssr-lines a { color: var(--xf-linkColor, #2c5aa0); font-weight: 600; }
+        .wb-ssr-lines a[aria-current="page"] { text-decoration: underline; }
+
+        @media (max-width: 1200px) {
+            .p-sideNav { display: none !important; }
+            .p-body-inner { width: 100% !important; padding: 0 10px !important; }
+        }
+    </style>
+</xf:head>
+
+<div id="windows-builds-root" data-section="{{ $section|default('windows11') }}"<xf:if is="$tag"> data-tag="{$tag}"</xf:if>>
+    <section class="wb-ssr" aria-label="{$meta.heading}">
+        <nav class="wb-ssr-nav" aria-label="Build tracker sections">
+            <a href="/builds/windows11/"<xf:if is="$section == 'windows11'"> aria-current="page"</xf:if>>Windows 11</a>
+            <a href="/builds/windows10/"<xf:if is="$section == 'windows10'"> aria-current="page"</xf:if>>Windows 10</a>
+            <a href="/builds/windowsserver/"<xf:if is="$section == 'windowsserver'"> aria-current="page"</xf:if>>Windows Server</a>
+            <a href="/builds/edge/"<xf:if is="$section == 'edge'"> aria-current="page"</xf:if>>Microsoft Edge</a>
+            <a href="/builds/office365/"<xf:if is="$section == 'office365'"> aria-current="page"</xf:if>>Office 365</a>
+        </nav>
+
+        <h2><xf:if is="$tag">{$meta.heading}<xf:else />Latest {$meta.heading}</xf:if></h2>
+
+        <xf:if is="in_array($section, ['windows11', 'windows10', 'windowsserver'])">
+            <xf:if is="$section == 'windows11'">
+                <xf:set var="$wbLines" value="{{ ['26H2', '26H1', '25H2', '24H2', '23H2', '22H2'] }}" />
+            <xf:elseif is="$section == 'windows10'" />
+                <xf:set var="$wbLines" value="{{ ['22H2', '21H2', '21H1'] }}" />
+            <xf:else />
+                <xf:set var="$wbLines" value="{{ ['2025', '2022', '2019'] }}" />
+            </xf:if>
+            <p class="wb-ssr-lines">Version lines:
+                <xf:foreach loop="$wbLines" value="$line" i="$i"><xf:if is="$i > 1"> &middot; </xf:if><a href="/builds/{$section}/{$line|to_lower}/"<xf:if is="$tag == $line"> aria-current="page"</xf:if>>{$line}</a></xf:foreach>
+            </p>
+        </xf:if>
+
+        <xf:if is="$topBuilds is not empty">
+            <ul class="wb-ssr-list">
+                <xf:foreach loop="$topBuilds" value="$build">
+                    <li>
+                        <xf:if is="$build.permalink">
+                            <a href="{$build.permalink}">{$build.name}</a>
+                        <xf:elseif is="$build.url" />
+                            <a href="{$build.url}" target="_blank" rel="noopener">{$build.name}</a>
+                        <xf:else />
+                            <strong>{$build.name}</strong>
+                        </xf:if>
+                        <xf:if is="$build.version">
+                            <span class="wb-ssr-meta"> &middot; v{$build.version}</span>
+                        </xf:if>
+                        <xf:if is="$build.datePublished">
+                            <span class="wb-ssr-meta"> &middot; <time datetime="{$build.datePublished}">{$build.datePublished}</time></span>
+                        </xf:if>
+                    </li>
+                </xf:foreach>
+            </ul>
+        </xf:if>
+
+        <p class="wb-ssr-note">
+            The interactive tracker — with filters, search, and AI-generated build
+            summaries — requires JavaScript and replaces this list when it loads.
+        </p>
+    </section>
+</div>
+
+<script type="module" src="{{ $reactAssets.js }}"></script>]]>
+    </template>
+    <template title="windowsbuilds_build" type="public" version_id="1000020" version_string="1.0.0 Beta 1" addon_id="WindowsBuilds">
+        <![CDATA[<xf:title>{$meta.title}</xf:title>
+<xf:description>{$meta.description}</xf:description>
+
+<xf:breadcrumb href="/builds/">Builds</xf:breadcrumb>
+<xf:breadcrumb href="{$b.index_url}">{$b.family_label}</xf:breadcrumb>
+<xf:if is="$b.tag AND $b.tag_url">
+    <xf:breadcrumb href="{$b.tag_url}">{$b.tag}</xf:breadcrumb>
+</xf:if>
+<xf:breadcrumb href="{$b.permalink}">{$b.build}</xf:breadcrumb>
+
+<xf:head option="wbSeoMeta">
+    <meta name="description" content="{$meta.description}" />
+    <meta name="keywords" content="{$meta.keywords}" />
+    <link rel="canonical" href="{$meta.canonical}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="{$meta.title}" />
+    <meta property="og:description" content="{$meta.description}" />
+    <meta property="og:url" content="{$meta.canonical}" />
+    <meta property="twitter:title" content="{$meta.title}" />
+    <meta property="twitter:description" content="{$meta.description}" />
+    <xf:if is="$b.related.prev"><link rel="prev" href="{$b.related.prev.url}" /></xf:if>
+    <xf:if is="$b.related.next"><link rel="next" href="{$b.related.next.url}" /></xf:if>
+    <xf:if is="!$b.summary AND $b.uuid"><link rel="preconnect" href="https://search.windowsforum.com" crossorigin /></xf:if>
+</xf:head>
+<xf:head option="wbSeoJsonLd"><script type="application/ld+json">{$seoJsonLd|raw}</script></xf:head>
+<xf:css src="windowsbuilds_build.less" />
+
+<xf:set var="$tone" value="{{ $b.line.status == 'preview' ? 'preview' : ($b.build_type == 'release' ? 'release' : ($b.build_type == 'release-preview' ? 'preview' : ($b.build_type == 'beta' ? 'beta' : 'experimental'))) }}" />
+<xf:set var="$channelText" value="{{ ($b.line.status == 'preview' AND $b.build_type == 'release') ? 'Preview flight' : $meta.channel }}" />
+
+<div class="wbb wbb--{$tone} {{ $b.is_dotnet ? 'wbb--dotnet' : '' }}" data-wb-build="{$b.build}" data-wb-family="{$b.family}">
+
+    <nav class="wbb-prevnext" aria-label="Neighbouring builds in this line">
+        <xf:if is="$b.related.prev">
+            <a class="wbb-prevnext-link" href="{$b.related.prev.url}" rel="prev"><xf:fa icon="fa-chevron-left" /> <span class="u-srOnly">Previous build </span><span class="wbb-mono">{$b.related.prev.build}</span><xf:if is="$b.related.prev.created"> <span class="wbb-muted">&middot; {{ date($b.related.prev.created, 'M j') }}</span></xf:if></a>
+        <xf:else />
+            <span class="wbb-muted">First build of this line</span>
+        </xf:if>
+        <xf:if is="$b.tag_url">
+            <a class="wbb-prevnext-line" href="{$b.tag_url}">{$b.family_label} {$b.tag}</a>
+        <xf:else />
+            <a class="wbb-prevnext-line" href="{$b.index_url}">{$b.family_label}</a>
+        </xf:if>
+        <xf:if is="$b.related.next">
+            <a class="wbb-prevnext-link" href="{$b.related.next.url}" rel="next"><span class="u-srOnly">Next build </span><span class="wbb-mono">{$b.related.next.build}</span><xf:if is="$b.related.next.created"> <span class="wbb-muted">&middot; {{ date($b.related.next.created, 'M j') }}</span></xf:if> <xf:fa icon="fa-chevron-right" /></a>
+        <xf:else />
+            <span class="wbb-muted">Newest in this line</span>
+        </xf:if>
+    </nav>
+
+    <header class="block wbb-hero">
+        <div class="block-container wbb-hero-inner">
+            <p class="wbb-eyebrow">
+                <a href="{$b.index_url}">{$b.family_label}</a>
+                <xf:if is="$b.tag AND $b.tag_url"> &middot; <a href="{$b.tag_url}">{$b.tag}</a></xf:if>
+                <xf:if is="$b.is_dotnet"> &middot; .NET Framework update<xf:elseif is="$channelText" /> &middot; {$channelText}</xf:if>
+                <xf:if is="$b.update_type_label"> &middot; {$b.update_type_label}</xf:if>
+            </p>
+            <p class="wbb-buildNumber" aria-hidden="true">{$b.build}</p>
+            <p class="wbb-title">{$b.title}</p>
+            <ul class="wbb-pills" aria-label="Build facts">
+                <xf:if is="$channelText"><li class="wbb-pill wbb-pill--{$tone}">{$channelText}</li></xf:if>
+                <xf:if is="$b.kind_label"><li class="wbb-pill">{$b.kind_label}</li></xf:if>
+                <xf:if is="$b.branch"><li class="wbb-pill">{$b.branch}</li></xf:if>
+                <xf:if is="$b.kb"><li class="wbb-pill wbb-pill--kb"><xf:if is="$b.kb_url"><a href="{$b.kb_url}" target="_blank" rel="noopener nofollow">{$b.kb}<span class="u-srOnly"> — Microsoft's article, opens in a new tab</span></a><xf:else />{$b.kb}</xf:if></li></xf:if>
+                <xf:if is="$b.release_date"><li class="wbb-pill"><xf:fa icon="fa-calendar" /> <time datetime="{$b.release_date}">{{ date(date_from_format('Y-m-d', $b.release_date), 'M j, Y') }}</time></li>
+                <xf:elseif is="$b.created" /><li class="wbb-pill"><xf:fa icon="fa-calendar" /> <time datetime="{$b.created_iso}">{{ date($b.created, 'M j, Y') }}</time></li></xf:if>
+                <xf:foreach loop="$b.records" value="$rec"><li class="wbb-pill wbb-pill--mono">{$rec.arch}</li></xf:foreach>
+            </ul>
+            <xf:if is="$b.line.note">
+                <p class="wbb-lineNote wbb-lineNote--{$b.line.status}"><xf:fa icon="fa-info-circle" /> <strong>{$b.family_label} {$b.tag}:</strong> {$b.line.note}</p>
+            </xf:if>
+            <xf:if is="$b.is_dotnet">
+                <p class="wbb-lineNote wbb-lineNote--dotnet"><xf:fa icon="fa-cube" /> This is a .NET Framework package for {$b.family_label} {$b.tag}, not an operating-system build. Its history below lists other .NET packages on the {$b.base} base.</p>
+            </xf:if>
+            <div class="wbb-actions">
+                <xf:foreach loop="$b.records" value="$rec">
+                    <xf:if is="$rec.download_url">
+                        <a class="button button--primary wbb-btn" href="{$rec.download_url}" target="_blank" rel="noopener nofollow"><span class="button-text"><xf:fa icon="fa-download" /> Download {$rec.arch}<span class="u-srOnly"> — build {$b.build} from UUP Dump, opens in a new tab</span></span></a>
+                    </xf:if>
+                </xf:foreach>
+                <xf:if is="$b.tag_url"><a class="button wbb-btn" href="{$b.tag_url}"><span class="button-text">All {$b.tag} builds</span></a></xf:if>
+                <a class="button wbb-btn" href="{$b.api_url}" rel="nofollow"><span class="button-text"><xf:fa icon="fa-code" /> JSON<span class="u-srOnly"> — this build from the builds API</span></span></a>
+            </div>
+        </div>
+    </header>
+
+    <div class="wbb-grid">
+        <div class="wbb-main">
+
+            <section class="block" aria-labelledby="wbb-summary-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-summary-h"><xf:fa icon="fa-robot" /> AI summary</h2>
+                    <div class="block-body block-row wbb-summary" id="wb-summary" data-uuid="{$b.uuid}" data-title="{$b.title}" data-ready="{{ $b.summary ? '1' : '0' }}" aria-live="polite">
+                        <xf:if is="$b.summary_html">
+                            {$b.summary_html|raw}
+                        <xf:else />
+                            <p class="wbb-summaryPending wbb-muted"><xf:fa icon="fa-spinner fa-spin" /> Writing the summary for this build&hellip;</p>
+                        </xf:if>
+                        <p class="wbb-fineprint">Generated from the package's release notes and forum coverage. Verify against Microsoft's release-health page before acting on it.</p>
+                    </div>
+                </div>
+            </section>
+
+            <xf:if is="$b.ms_known_issues OR $b.ms_none_known">
+                <section class="block" aria-labelledby="wbb-msissues-h">
+                    <div class="block-container">
+                        <h2 class="block-header" id="wbb-msissues-h"><xf:fa icon="fa-windows" /> Microsoft's known issues<xf:if is="$b.kb"> <span class="wbb-muted">&mdash; {$b.kb}</span></xf:if></h2>
+                        <div class="block-body block-row">
+                            <xf:if is="$b.ms_known_issues">
+                                <ul class="wbb-list">
+                                    <xf:foreach loop="$b.ms_known_issues" value="$mi">
+                                        <li class="wbb-item wbb-item--ms">
+                                            <span class="wbb-kind wbb-kind--issue">Issue</span>
+                                            <span class="wbb-item-title"><xf:if is="$mi.title">{$mi.title}<xf:else />Known issue</xf:if></span>
+                                            <span class="wbb-item-body">{$mi.symptom}</span>
+                                            <xf:if is="$mi.workaround"><span class="wbb-item-body"><strong>Workaround:</strong> {$mi.workaround}</span></xf:if>
+                                        </li>
+                                    </xf:foreach>
+                                </ul>
+                            <xf:else />
+                                <p class="wbb-muted">Microsoft lists no known issues for this update<xf:if is="$b.kb"> ({$b.kb})</xf:if>.</p>
+                            </xf:if>
+                            <xf:if is="$b.kb_url"><p class="wbb-more"><a href="{$b.kb_url}" target="_blank" rel="noopener nofollow">Microsoft's release notes for {$b.kb} &rsaquo;</a></p></xf:if>
+                        </div>
+                    </div>
+                </section>
+            </xf:if>
+
+            <section class="block" aria-labelledby="wbb-issues-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-issues-h"><xf:fa icon="fa-bug" /> Known issues<span class="wbb-muted"> &mdash; reported on the forum</span></h2>
+                    <div class="block-body block-row">
+                        <xf:if is="$b.known_issues">
+                            <ul class="wbb-list">
+                                <xf:foreach loop="$b.known_issues" value="$it">
+                                    <li class="wbb-item">
+                                        <span class="wbb-kind wbb-kind--issue">Issue</span>
+                                        <a class="wbb-item-title" href="{$it.url}">{$it.title}</a>
+                                        <span class="wbb-item-meta">{$it.replies|number} replies &middot; {{ date($it.post_date, 'M j, Y') }}</span>
+                                    </li>
+                                </xf:foreach>
+                            </ul>
+                        <xf:else />
+                            <p class="wbb-muted">No problems reported on the forum for this build yet. Threads that name {$b.build}<xf:if is="$b.kb"> or {$b.kb}</xf:if> and describe a fault appear here automatically.</p>
+                        </xf:if>
+                    </div>
+                </div>
+            </section>
+
+            <section class="block" aria-labelledby="wbb-news-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-news-h"><xf:fa icon="fa-newspaper" /> In the news</h2>
+                    <div class="block-body block-row">
+                        <xf:if is="$b.linked.news">
+                            <ul class="wbb-list">
+                                <xf:foreach loop="$b.linked.news" value="$it">
+                                    <li class="wbb-item">
+                                        <span class="wbb-kind wbb-kind--{$it.kind}">{{ $it.kind == 'issue' ? 'Issue' : ($it.kind == 'fix' ? 'Fix' : 'Coverage') }}</span>
+                                        <a class="wbb-item-title" href="{$it.url}">{$it.title}</a>
+                                        <span class="wbb-item-meta">{{ date($it.post_date, 'M j, Y') }} &middot; <xf:if is="$it.match == 'exact'">names this build<xf:else />{$b.family_label} {$b.tag} coverage from this build's release window</xf:if></span>
+                                    </li>
+                                </xf:foreach>
+                            </ul>
+                        <xf:else />
+                            <p class="wbb-muted">No article names {$b.build}<xf:if is="$b.kb"> or {$b.kb}</xf:if> yet, and nothing about {$b.family_label} {$b.tag} was published in its release window. <a href="/news/">Browse Windows news</a>.</p>
+                        </xf:if>
+                    </div>
+                </div>
+            </section>
+
+            <xf:if is="$b.linked.tutorials">
+                <section class="block" aria-labelledby="wbb-howto-h">
+                    <div class="block-container">
+                        <h2 class="block-header" id="wbb-howto-h"><xf:fa icon="fa-book" /> How-to</h2>
+                        <div class="block-body block-row">
+                            <ul class="wbb-list">
+                                <xf:foreach loop="$b.linked.tutorials" value="$it">
+                                    <li class="wbb-item">
+                                        <span class="wbb-kind wbb-kind--howto">Guide</span>
+                                        <a class="wbb-item-title" href="{$it.url}">{$it.title}</a>
+                                        <span class="wbb-item-meta">{{ date($it.post_date, 'M j, Y') }}</span>
+                                    </li>
+                                </xf:foreach>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+            </xf:if>
+
+            <section class="block" aria-labelledby="wbb-threads-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-threads-h"><xf:fa icon="fa-comments" /> Discussed on the forum</h2>
+                    <div class="block-body block-row">
+                        <xf:if is="$b.linked.threads">
+                            <ul class="wbb-list">
+                                <xf:foreach loop="$b.linked.threads" value="$it">
+                                    <li class="wbb-item">
+                                        <span class="wbb-kind wbb-kind--{$it.kind}">{{ $it.kind == 'issue' ? 'Issue' : ($it.kind == 'fix' ? 'Fix' : 'Thread') }}</span>
+                                        <a class="wbb-item-title" href="{$it.url}">{$it.title}</a>
+                                        <span class="wbb-item-meta">{$it.replies|number} replies &middot; {{ date($it.last_post_date, 'M j, Y') }}<xf:if is="$it.match != 'exact'"> &middot; {$b.tag} thread from the release window</xf:if></span>
+                                    </li>
+                                </xf:foreach>
+                            </ul>
+                        <xf:else />
+                            <p class="wbb-muted">No member thread names {$b.build} yet.</p>
+                        </xf:if>
+                        <p class="wbb-more"><a class="wbb-textBtn" href="{{ link('search/search', null, {'keywords': $b.build}) }}" rel="nofollow"><xf:fa icon="fa-search" /> Search the forum for {$b.build}</a> <xf:if is="$askForum"><a class="wbb-textBtn" href="{{ link('forums/post-thread', $askForum, {'title': $b.family_label . ' ' . $b.build}) }}" rel="nofollow"><xf:fa icon="fa-pen" /> Ask about this build</a></xf:if></p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <aside class="wbb-side" aria-label="Build facts and related builds">
+            <section class="block" aria-labelledby="wbb-facts-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-facts-h">Facts</h2>
+                    <div class="block-body block-row">
+                        <dl class="wbb-facts">
+                            <dt>Build</dt><dd class="wbb-mono">{$b.build}</dd>
+                            <dt>Version line</dt><dd><xf:if is="$b.tag_url"><a href="{$b.tag_url}">{$b.family_label} {$b.tag}</a><xf:else />{$b.family_label}</xf:if> <span class="wbb-muted">(base {$b.base})</span></dd>
+                            <xf:if is="$b.line.status"><dt>Line status</dt><dd>{$b.line.note}</dd></xf:if>
+                            <xf:if is="$channelText"><dt>Channel</dt><dd>{$channelText}</dd></xf:if>
+                            <xf:if is="$b.kind_label"><dt>Package</dt><dd>{$b.kind_label}</dd></xf:if>
+                            <xf:if is="$b.kb"><dt>Update</dt><dd><a href="{$b.kb_url}" target="_blank" rel="noopener nofollow">{$b.kb}</a><xf:if is="$b.update_type_label"> <span class="wbb-muted">&middot; {$b.update_type_label}</span></xf:if></dd></xf:if>
+                            <xf:if is="$b.release_date"><dt>Released</dt><dd><time datetime="{$b.release_date}">{{ date(date_from_format('Y-m-d', $b.release_date), 'F j, Y') }}</time> <span class="wbb-muted">(Microsoft)</span></dd>
+                            <xf:elseif is="$b.created" /><dt>Released</dt><dd><time datetime="{$b.created_iso}">{{ date($b.created, 'F j, Y') }}</time> <span class="wbb-muted">(UUP Dump)</span></dd></xf:if>
+                            <dt>Architectures</dt><dd>{$b.records|pluck('arch')|join(', ')}</dd>
+                            <xf:foreach loop="$b.records" value="$rec">
+                                <dt>UUID {$rec.arch}</dt><dd class="wbb-mono wbb-uuid">{$rec.uuid}</dd>
+                            </xf:foreach>
+                        </dl>
+                    </div>
+                </div>
+            </section>
+
+            <xf:if is="$b.related.wave">
+                <section class="block" aria-labelledby="wbb-wave-h">
+                    <div class="block-container">
+                        <h2 class="block-header" id="wbb-wave-h">Same servicing wave</h2>
+                        <div class="block-body block-row">
+                            <ul class="wbb-list wbb-list--compact">
+                                <xf:foreach loop="$b.related.wave" value="$w">
+                                    <li class="wbb-item">
+                                        <a class="wbb-item-title wbb-mono" href="{$w.url}">{$w.build}</a>
+                                        <span class="wbb-item-meta">{$w.family_label}<xf:if is="$w.tag"> {$w.tag}</xf:if><xf:if is="$w.kb"> &middot; {$w.kb}</xf:if></span>
+                                    </li>
+                                </xf:foreach>
+                            </ul>
+                            <xf:set var="$wbbParts" value="{$b.build|split('.')}" />
+                            <p class="wbb-fineprint">Builds sharing the .{$wbbParts.1} minor, released within three days.</p>
+                        </div>
+                    </div>
+                </section>
+            </xf:if>
+
+            <section class="block" aria-labelledby="wbb-history-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-history-h">History <span class="wbb-muted">&mdash; base {$b.base}<xf:if is="$b.is_dotnet"> (.NET)</xf:if></span></h2>
+                    <div class="block-body block-row">
+                        <ol class="wbb-list wbb-list--compact">
+                            <xf:foreach loop="$b.related.history" value="$h">
+                                <li class="wbb-item {{ $h.current ? 'wbb-item--current' : '' }}">
+                                    <xf:if is="$h.current">
+                                        <span class="wbb-item-title wbb-mono" aria-current="page">{$h.build}</span>
+                                    <xf:else />
+                                        <a class="wbb-item-title wbb-mono" href="{$h.url}">{$h.build}</a>
+                                    </xf:if>
+                                    <span class="wbb-item-meta"><xf:if is="$h.created">{{ date($h.created, 'M j, Y') }}</xf:if><xf:if is="$h.channel_label AND $h.channel_label != 'Release'"> &middot; {$h.channel_label}</xf:if><xf:if is="$h.kb"> &middot; {$h.kb}</xf:if></span>
+                                </li>
+                            </xf:foreach>
+                        </ol>
+                        <xf:if is="$b.tag_url AND !$b.is_dotnet">
+                            <p class="wbb-more"><a href="{$b.tag_url}">All {$b.related.history_total|number} builds of {$b.family_label} {$b.tag} &rsaquo;</a></p>
+                        </xf:if>
+                    </div>
+                </div>
+            </section>
+
+            <section class="block" aria-labelledby="wbb-follow-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-follow-h">Follow this line</h2>
+                    <div class="block-body block-row">
+                        <ul class="wbb-list wbb-list--compact">
+                            <xf:if is="$b.tag_url"><li class="wbb-item"><a class="wbb-item-title" href="{$b.tag_url}">{$b.family_label} {$b.tag} builds</a></li></xf:if>
+                            <li class="wbb-item"><a class="wbb-item-title" href="{$b.index_url}">{$b.family_label} tracker</a></li>
+                            <li class="wbb-item"><a class="wbb-item-title" href="/news/">Windows news</a></li>
+                            <li class="wbb-item"><a class="wbb-item-title" href="{$b.api_url}" rel="nofollow">JSON API for this build</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+</div>
+
+<xf:if is="!$b.summary AND $b.uuid">
+    <script>
+    (function () {
+        var el = document.getElementById('wb-summary');
+        if (!el || el.getAttribute('data-ready') === '1') return;
+        var pending = el.querySelector('.wbb-summaryPending');
+        var params = new URLSearchParams();
+        params.set('uuid', el.getAttribute('data-uuid'));
+        params.set('title', el.getAttribute('data-title'));
+        params.set('build_type', 'windows');
+        fetch('{$apiBase}/summary?' + params.toString(), { method: 'POST', credentials: 'omit', mode: 'cors' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d || typeof d.summary !== 'string' || !d.summary) throw new Error('no summary');
+                var frag = document.createDocumentFragment();
+                var linkRe = /\[([^\]]{1,200})\]\((https?:\/\/[^\s)]+)\)/g;
+                d.summary.split(/\n\s*\n/).forEach(function (para) {
+                    var text = para.replace(/\*\*/g, '').replace(/\s*\(https?:\/\/[^\s)]*\)/g, '').trim();
+                    if (!text) return;
+                    var p = document.createElement('p');
+                    var last = 0, m;
+                    while ((m = linkRe.exec(text)) !== null) {
+                        p.appendChild(document.createTextNode(text.slice(last, m.index)));
+                        var a = document.createElement('a');
+                        a.href = m[2]; a.rel = 'nofollow noopener'; a.target = '_blank'; a.textContent = m[1];
+                        p.appendChild(a);
+                        last = m.index + m[0].length;
+                    }
+                    p.appendChild(document.createTextNode(text.slice(last)));
+                    frag.appendChild(p);
+                });
+                if (pending) pending.remove();
+                el.insertBefore(frag, el.firstChild);
+                el.setAttribute('data-ready', '1');
+            })
+            .catch(function () {
+                if (pending) pending.textContent = 'No summary is available for this build yet.';
+            });
+    })();
+    </script>
+</xf:if>]]>
+    </template>
+    <template title="windowsbuilds_build.less" type="public" version_id="1000020" version_string="1.0.0 Beta 1" addon_id="WindowsBuilds">
+        <![CDATA[// Build permalink page (/builds/<family>/<build>/). Rides the style's own
+// block chrome; the hero, pills, kind chips and list rows are bespoke.
+//
+// Colour: every tone is declared as a light value first and then overridden
+// with light-dark() for browsers that support it; XF sets color-scheme on
+// :root for both explicit variations and the system setting, so the pair
+// follows the visitor's choice. Contrast targets: >= 4.5:1 for text, >= 3:1
+// for the chip labels on their tinted backgrounds, in both schemes.
+.wbb
+{
+    --wbb-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --wbb-muted: #5b6470;
+    --wbb-muted: light-dark(#5b6470, #c2c9d2);
+    --wbb-accent: #1d5fb4;
+    --wbb-accent: light-dark(#1d5fb4, #8fc1ff);
+    --wbb-hero-tint: rgba(29, 95, 180, .08);
+    --wbb-hero-tint: light-dark(rgba(29, 95, 180, .08), rgba(143, 193, 255, .10));
+}
+.wbb--release { --wbb-hero-tint: rgba(16, 140, 88, .10); --wbb-hero-tint: light-dark(rgba(16, 140, 88, .10), rgba(74, 222, 128, .09)); }
+.wbb--preview { --wbb-hero-tint: rgba(109, 79, 194, .10); --wbb-hero-tint: light-dark(rgba(109, 79, 194, .10), rgba(185, 164, 255, .10)); }
+.wbb--beta { --wbb-hero-tint: rgba(180, 83, 9, .10); --wbb-hero-tint: light-dark(rgba(180, 83, 9, .10), rgba(251, 191, 36, .10)); }
+.wbb--dotnet { --wbb-hero-tint: rgba(124, 58, 237, .08); --wbb-hero-tint: light-dark(rgba(124, 58, 237, .08), rgba(196, 181, 253, .10)); }
+
+.wbb-mono { font-family: var(--wbb-mono); }
+.wbb-muted { color: var(--wbb-muted); }
+// Inside the blue block headers the muted grey fails contrast; inherit white.
+.block-header .wbb-muted { color: inherit; font-weight: 400; }
+.wbb-fineprint
+{
+    margin: 10px 0 0;
+    font-size: @xf-fontSizeSmallest;
+    color: var(--wbb-muted);
+}
+
+.wbb-prevnext
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 10px;
+    font-size: @xf-fontSizeSmaller;
+
+    .wbb-prevnext-link,
+    .wbb-prevnext-line
+    {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        padding: 0 6px;
+        font-weight: 600;
+    }
+}
+
+.wbb-hero .block-container
+{
+    background-image: linear-gradient(135deg, var(--wbb-hero-tint), transparent 60%);
+}
+.wbb-hero-inner { padding: 22px 22px 18px; }
+.wbb-eyebrow
+{
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--wbb-muted);
+
+    a { color: var(--wbb-accent); }
+}
+.wbb-buildNumber
+{
+    margin: 6px 0 2px;
+    font-family: var(--wbb-mono);
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+    color: @xf-textColor;
+
+    @media (max-width: @xf-responsiveMedium) { font-size: 32px; }
+}
+.wbb-title
+{
+    margin: 0 0 12px;
+    font-size: @xf-fontSizeLarge;
+    color: @xf-textColor;
+}
+.wbb-pills
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+.wbb-pill
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.5;
+    background: @xf-contentAltBg;
+    color: @xf-textColor;
+
+    &--mono, &--kb { font-family: var(--wbb-mono); }
+    &--release { background: #d7f3e6; color: #0b5e3b; background: light-dark(#d7f3e6, rgba(16, 185, 129, .22)); color: light-dark(#0b5e3b, #7ef0c1); }
+    &--preview { background: #e6dfff; color: #4b2ea8; background: light-dark(#e6dfff, rgba(139, 92, 246, .24)); color: light-dark(#4b2ea8, #cdbcff); }
+    &--beta { background: #fdebd0; color: #8a4a05; background: light-dark(#fdebd0, rgba(245, 158, 11, .22)); color: light-dark(#8a4a05, #ffd08a); }
+    &--experimental { background: #dbeafe; color: #1e40af; background: light-dark(#dbeafe, rgba(59, 130, 246, .22)); color: light-dark(#1e40af, #a9c8ff); }
+}
+.wbb-lineNote
+{
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border-left: 3px solid var(--wbb-accent);
+    border-radius: 0 6px 6px 0;
+    font-size: @xf-fontSizeSmaller;
+    background: @xf-contentAltBg;
+    color: @xf-textColor;
+
+    &--preview { border-left-color: #6d4fc2; border-left-color: light-dark(#6d4fc2, #b9a4ff); }
+    &--silicon { border-left-color: #1d6fa5; border-left-color: light-dark(#1d6fa5, #7cc4f5); }
+    &--eol { border-left-color: #b42323; border-left-color: light-dark(#b42323, #ff8a8a); }
+    &--dotnet { border-left-color: #7c3aed; border-left-color: light-dark(#7c3aed, #c4b5fd); }
+}
+.wbb-actions
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .wbb-btn { min-height: 44px; }
+}
+
+.wbb-grid
+{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 0 18px;
+    align-items: start;
+
+    @media (max-width: @xf-responsiveWide) { grid-template-columns: minmax(0, 1fr); }
+}
+.wbb-main, .wbb-side { min-width: 0; }
+
+.wbb-list
+{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.wbb-item
+{
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 2px 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid @xf-borderColorFaint;
+
+    &:last-child { border-bottom: 0; }
+
+    .wbb-item-title { grid-column: 2; font-weight: 600; }
+    .wbb-item-meta { grid-column: 2; font-size: @xf-fontSizeSmallest; color: var(--wbb-muted); }
+    .wbb-kind { grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
+
+    &--current .wbb-item-title { color: var(--wbb-accent); }
+
+    .wbb-item-body { grid-column: 2; font-size: @xf-fontSizeSmaller; line-height: 1.45; }
+    &--ms .wbb-kind { grid-row: 1 / span 4; }
+}
+.wbb-list--compact .wbb-item
+{
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0;
+
+    // Whole row is the target (>= 44px tall) so the compact lists pass the
+    // touch-target check without growing the sidebar.
+    .wbb-item-title
+    {
+        display: block;
+        grid-column: 1;
+        padding: 9px 0 0;
+        min-height: 24px;
+    }
+    .wbb-item-meta { grid-column: 1; padding-bottom: 9px; }
+    .wbb-item-title:only-child { padding: 12px 0; }
+}
+.wbb-kind
+{
+    display: inline-block;
+    min-width: 62px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    background: @xf-contentAltBg;
+    color: var(--wbb-muted);
+
+    &--issue { background: #fde2e2; color: #9f1c1c; background: light-dark(#fde2e2, rgba(239, 68, 68, .22)); color: light-dark(#9f1c1c, #ffb4b4); }
+    &--fix { background: #d7f3e6; color: #0b5e3b; background: light-dark(#d7f3e6, rgba(16, 185, 129, .22)); color: light-dark(#0b5e3b, #7ef0c1); }
+    &--coverage { background: #dbeafe; color: #1e40af; background: light-dark(#dbeafe, rgba(59, 130, 246, .22)); color: light-dark(#1e40af, #a9c8ff); }
+    &--howto { background: #fdebd0; color: #8a4a05; background: light-dark(#fdebd0, rgba(245, 158, 11, .22)); color: light-dark(#8a4a05, #ffd08a); }
+}
+.wbb-more
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 10px 0 0;
+    font-size: @xf-fontSizeSmaller;
+
+    a { display: inline-flex; align-items: center; min-height: 32px; }
+}
+.wbb-textBtn { gap: 6px; font-weight: 600; }
+
+.wbb-facts
+{
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 7px 12px;
+    margin: 0;
+    font-size: @xf-fontSizeSmaller;
+
+    dt { color: var(--wbb-muted); white-space: nowrap; }
+    dd { margin: 0; overflow-wrap: anywhere; }
+}
+.wbb-uuid { font-size: @xf-fontSizeSmallest; }
+
+.wbb-summary p { margin: 0 0 .75em; }
+.wbb-summary p:last-of-type { margin-bottom: 0; }
+
+@media print
+{
+    .wbb-actions, .wbb-prevnext, .wbb-side .block:last-child { display: none; }
+    .wbb-grid { grid-template-columns: minmax(0, 1fr); }
+}]]>
+    </template>
+    <template title="windowsbuilds_thread_update_card" type="public" version_id="1000020" version_string="1.0.0 Beta 1" addon_id="WindowsBuilds">
+        <![CDATA[<xf:comment>"Update details": the reverse of the build page's linked content. Data comes
+from wf_content_build_ref + wf_build_kb via WindowsBuilds\Widget\ThreadUpdateCard - all
+first-party, no model output. Deliberately script-free so it stays AMP-safe.
+
+A build is only linked when renderable = 1: wf_build_kb carries release-health rows back to
+2015 but the build page renders from the UUP cache, so a resolved build is not always a
+linkable one. Articles that name only CVEs get the vulnerabilities card on its own.</xf:comment>
+<xf:css src="windowsbuilds_thread_update_card.less" />
+
+<section class="wf-sideCard wbbUpdate" aria-labelledby="wbb-update-{$thread.thread_id}">
+	<h2 class="wf-sideCard-head" id="wbb-update-{$thread.thread_id}">
+		<xf:fa icon="fa-sync" />
+		<span><xf:if is="$card.primary">Update details<xf:else />Vulnerabilities named</xf:if></span>
+	</h2>
+
+	<xf:if is="$card.primary">
+	<div class="wf-sideCard-body">
+		<xf:if is="!$card.primary.build">
+			<xf:comment>KB with no build row: Microsoft's page is still the right destination.</xf:comment>
+		<xf:elseif is="$card.primary.permalink" />
+			<a class="wbbUpdate-build" href="{$card.primary.permalink}">
+				<span class="wbbUpdate-buildNumber">{$card.primary.build}</span>
+				<xf:if is="$card.primary.family_label"><span class="wbbUpdate-buildFamily">{$card.primary.family_label}<xf:if is="$card.primary.tag"> &middot; {$card.primary.tag}</xf:if></span></xf:if>
+			</a>
+		<xf:else />
+			<div class="wbbUpdate-build wbbUpdate-build--plain">
+				<span class="wbbUpdate-buildNumber">{$card.primary.build}</span>
+				<xf:if is="$card.primary.family_label"><span class="wbbUpdate-buildFamily">{$card.primary.family_label}<xf:if is="$card.primary.tag"> &middot; {$card.primary.tag}</xf:if></span></xf:if>
+			</div>
+		</xf:if>
+
+		<dl class="wbbUpdate-facts">
+			<xf:if is="$card.primary.kb">
+				<div class="wbbUpdate-fact">
+					<dt>KB article</dt>
+					<dd>
+						<xf:if is="$card.primary.kb_url">
+							<a href="{$card.primary.kb_url}" rel="external nofollow noopener" title="{$card.primary.kb_title}">{$card.primary.kb}</a>
+						<xf:else />
+							{$card.primary.kb}
+						</xf:if>
+					</dd>
+				</div>
+			</xf:if>
+			<xf:if is="$card.primary.release_display">
+				<div class="wbbUpdate-fact">
+					<dt>Released</dt>
+					<dd><time datetime="{$card.primary.release_date}">{$card.primary.release_display}</time></dd>
+				</div>
+			<xf:elseif is="$card.primary.created_display" />
+				<div class="wbbUpdate-fact">
+					<dt>Published</dt>
+					<dd>{$card.primary.created_display}</dd>
+				</div>
+			</xf:if>
+			<xf:if is="$card.primary.update_type_label">
+				<div class="wbbUpdate-fact">
+					<dt>Update type</dt>
+					<dd>{$card.primary.update_type_label}</dd>
+				</div>
+			<xf:elseif is="$card.primary.build_kind" />
+				<div class="wbbUpdate-fact">
+					<dt>Update type</dt>
+					<dd>{$card.primary.build_kind}</dd>
+				</div>
+			</xf:if>
+			<xf:if is="$card.primary.servicing">
+				<div class="wbbUpdate-fact">
+					<dt>Servicing</dt>
+					<dd>{$card.primary.servicing}</dd>
+				</div>
+			<xf:elseif is="$card.primary.channel" />
+				<div class="wbbUpdate-fact">
+					<dt>Channel</dt>
+					<dd>{$card.primary.channel}</dd>
+				</div>
+			</xf:if>
+			<xf:if is="$card.primary.issue_count">
+				<div class="wbbUpdate-fact">
+					<dt>Known issues</dt>
+					<dd><xf:if is="$card.primary.permalink"><a href="{$card.primary.permalink}">{$card.primary.issue_count} listed by Microsoft</a><xf:else />{$card.primary.issue_count} listed by Microsoft</xf:if></dd>
+				</div>
+			<xf:elseif is="$card.primary.none_known" />
+				<div class="wbbUpdate-fact">
+					<dt>Known issues</dt>
+					<dd>None reported</dd>
+				</div>
+			</xf:if>
+			<xf:if is="$card.primary.tag_url">
+				<div class="wbbUpdate-fact">
+					<dt>Version line</dt>
+					<dd><a href="{$card.primary.tag_url}">{$card.primary.tag}</a></dd>
+				</div>
+			</xf:if>
+		</dl>
+	</div>
+	</xf:if>
+
+	<xf:if is="$card.secondary is not empty">
+		<div class="wf-sideCard-body wbbUpdate-alsoBlock">
+			<h3>Also referenced</h3>
+			<ul class="wbbUpdate-also">
+				<xf:foreach loop="$card.secondary" value="$ref">
+					<li>
+						<xf:if is="$ref.permalink"><a href="{$ref.permalink}">{$ref.build}</a><xf:else /><span class="wbbUpdate-alsoPlain">{$ref.build}</span></xf:if>
+						<span class="wbbUpdate-alsoMeta"><xf:if is="$ref.family_label">{$ref.family_label}</xf:if><xf:if is="$ref.kb"> &middot; {$ref.kb}</xf:if></span>
+					</li>
+				</xf:foreach>
+			</ul>
+		</div>
+	</xf:if>
+
+	<xf:if is="$card.cves.items is not empty">
+		<div class="wf-sideCard-body wbbUpdate-cveBlock">
+			<xf:if is="$card.primary"><h3>Vulnerabilities named</h3></xf:if>
+			<ul class="wbbUpdate-cves">
+				<xf:foreach loop="$card.cves.items" value="$cve">
+					<li><a href="{$cve.url}" rel="external nofollow noopener">{$cve.id}</a></li>
+				</xf:foreach>
+			</ul>
+			<xf:if is="$card.cves.more"><p class="wbbUpdate-more">and more in the article</p></xf:if>
+		</div>
+	</xf:if>
+
+	<xf:if is="$card.primary.checked_display">
+		<div class="wf-sideCard-body wbbUpdate-freshness">
+			<xf:comment>How current the card is, not when the update shipped -- this is what
+			tells a reader the known-issues list above is not stale.</xf:comment>
+			Microsoft's update details last checked
+			<time datetime="{$card.primary.checked_iso}">{$card.primary.checked_display}</time>
+		</div>
+	</xf:if>
+
+	<xf:if is="$card.primary.permalink">
+		<div class="wf-sideCard-foot">
+			<a href="{$card.primary.permalink}"><xf:fa icon="fa-arrow-right" /> View the full update page</a>
+		</div>
+	</xf:if>
+</section>]]>
+    </template>
+    <template title="windowsbuilds_thread_update_card.less" type="public" version_id="1000020" version_string="1.0.0 Beta 1" addon_id="WindowsBuilds">
+        <![CDATA[// "Update details" thread sidebar card.
+//
+// Rides the shared .wf-sideCard chrome from style 40's extra.less section 15,
+// but every colour is declared as a plain light value first and then repeated
+// through light-dark() (same approach as windowsbuilds_build.less), so the card
+// still reads correctly in style 17, which carries no wf-sideCard rules at all.
+.wbbUpdate
+{
+    --wbbu-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --wbbu-muted: #5b6470;
+    --wbbu-muted: light-dark(#5b6470, #b3bac4);
+    --wbbu-accent: #1d5fb4;
+    --wbbu-accent: light-dark(#1d5fb4, #8fc1ff);
+    --wbbu-line: rgba(0, 0, 0, .10);
+    --wbbu-line: light-dark(rgba(0, 0, 0, .10), rgba(255, 255, 255, .14));
+    --wbbu-tint: rgba(29, 95, 180, .06);
+    --wbbu-tint: light-dark(rgba(29, 95, 180, .06), rgba(143, 193, 255, .08));
+}
+
+.wbbUpdate .wf-sideCard-head { display: flex; align-items: center; gap: 8px; }
+
+.wbbUpdate-build
+{
+    display: block;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border: 1px solid var(--wbbu-line);
+    border-radius: 6px;
+    background: var(--wbbu-tint);
+    text-decoration: none;
+}
+.wbbUpdate-build:hover { border-color: var(--wbbu-accent); }
+// No build page for this number (release-health knows it, the UUP feed does not).
+.wbbUpdate-build--plain { cursor: default; }
+.wbbUpdate-build--plain .wbbUpdate-buildNumber { color: inherit; }
+.wbbUpdate-alsoPlain { font-family: var(--wbbu-mono); }
+.wbbUpdate-buildNumber
+{
+    display: block;
+    font-family: var(--wbbu-mono);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--wbbu-accent);
+}
+.wbbUpdate-buildFamily
+{
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--wbbu-muted);
+}
+
+.wbbUpdate-facts { margin: 0; }
+.wbbUpdate-fact
+{
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--wbbu-line);
+    font-size: 13px;
+}
+.wbbUpdate-fact:first-child { border-top: 0; padding-top: 0; }
+.wbbUpdate-fact dt { flex: 0 0 auto; color: var(--wbbu-muted); font-weight: 400; }
+.wbbUpdate-fact dd { flex: 1 1 auto; margin: 0; text-align: right; }
+
+.wbbUpdate-alsoBlock,
+.wbbUpdate-cveBlock { border-top: 1px solid var(--wbbu-line); }
+.wbbUpdate-alsoBlock h3,
+.wbbUpdate-cveBlock h3
+{
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--wbbu-muted);
+}
+.wbbUpdate-also { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.wbbUpdate-also li { padding: 3px 0; }
+.wbbUpdate-also a { font-family: var(--wbbu-mono); }
+.wbbUpdate-alsoMeta { margin-left: 6px; font-size: 12px; color: var(--wbbu-muted); }
+
+.wbbUpdate-cves { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.wbbUpdate-cves a
+{
+    display: inline-block;
+    padding: 2px 7px;
+    border: 1px solid var(--wbbu-line);
+    border-radius: 999px;
+    font-family: var(--wbbu-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    text-decoration: none;
+}
+.wbbUpdate-cves a:hover { border-color: var(--wbbu-accent); }
+.wbbUpdate-more { margin: 6px 0 0; font-size: 12px; color: var(--wbbu-muted); }
+.wbbUpdate-freshness
+{
+    border-top: 1px solid var(--wbbu-line);
+    font-size: 12px;
+    color: var(--wbbu-muted);
+}
+
+// Minimum touch target for the card's own links on coarse pointers.
+@media (pointer: coarse)
+{
+    .wbbUpdate-fact dd a,
+    .wbbUpdate-also a,
+    .wbbUpdate-cves a { display: inline-block; min-height: 24px; }
+}]]>
+    </template>
+</templates>

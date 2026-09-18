@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cron>
+  <entry entry_id="wbGenerateSitemap" cron_class="WindowsBuilds\Cron\GenerateSitemap" cron_method="generate" active="1"><![CDATA[{"day_type":"dom","dom":[-1],"hours":[3],"minutes":[15]}]]></entry>
+</cron>
