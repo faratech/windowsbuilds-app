@@ -219,6 +219,7 @@
 <xf:breadcrumb href="{$b.permalink}">{$b.build}</xf:breadcrumb>
 
 <xf:head option="wbSeoMeta">
+    <xf:if is="$meta.noindex"><meta name="robots" content="noindex, follow" /></xf:if>
     <meta name="description" content="{$meta.description}" />
     <meta name="keywords" content="{$meta.keywords}" />
     <link rel="canonical" href="{$meta.canonical}" />
@@ -298,6 +299,7 @@
     <div class="wbb-grid">
         <div class="wbb-main">
 
+            <xf:if is="$b.summary_html OR $b.uuid">
             <section class="block" aria-labelledby="wbb-summary-h">
                 <div class="block-container">
                     <h2 class="block-header" id="wbb-summary-h"><xf:fa icon="fa-robot" /> AI summary</h2>
@@ -311,6 +313,17 @@
                     </div>
                 </div>
             </section>
+            <xf:elseif is="$b.ms_highlights" />
+            <section class="block" aria-labelledby="wbb-highlights-h">
+                <div class="block-container">
+                    <h2 class="block-header" id="wbb-highlights-h"><xf:fa icon="fa-windows" /> What's in this update</h2>
+                    <div class="block-body block-row wbb-summary">
+                        <p>{$b.ms_highlights}</p>
+                        <p class="wbb-fineprint">From Microsoft's release notes<xf:if is="$b.kb"> for {$b.kb}</xf:if>.</p>
+                    </div>
+                </div>
+            </section>
+            </xf:if>
 
             <xf:if is="$b.ms_known_issues OR $b.ms_none_known">
                 <section class="block" aria-labelledby="wbb-msissues-h">
@@ -435,7 +448,7 @@
                             <xf:if is="$b.kb"><dt>Update</dt><dd><a href="{$b.kb_url}" target="_blank" rel="noopener nofollow">{$b.kb}</a><xf:if is="$b.update_type_label"> <span class="wbb-muted">&middot; {$b.update_type_label}</span></xf:if></dd></xf:if>
                             <xf:if is="$b.release_date"><dt>Released</dt><dd><time datetime="{$b.release_date}">{{ date(date_from_format('Y-m-d', $b.release_date), 'F j, Y') }}</time> <span class="wbb-muted">(Microsoft)</span></dd>
                             <xf:elseif is="$b.created" /><dt>Released</dt><dd><time datetime="{$b.created_iso}">{{ date($b.created, 'F j, Y') }}</time> <span class="wbb-muted">(UUP Dump)</span></dd></xf:if>
-                            <dt>Architectures</dt><dd>{$b.records|pluck('arch')|join(', ')}</dd>
+                            <xf:if is="$b.records"><dt>Architectures</dt><dd>{$b.records|pluck('arch')|join(', ')}</dd></xf:if>
                             <xf:foreach loop="$b.records" value="$rec">
                                 <dt>UUID {$rec.arch}</dt><dd class="wbb-mono wbb-uuid">{$rec.uuid}</dd>
                             </xf:foreach>

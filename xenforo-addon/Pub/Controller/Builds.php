@@ -194,17 +194,33 @@ class Builds extends AbstractController
         }
         $bundle['downloads'] = $archList;
 
-        $description = sprintf(
-            '%s build %s%s%s. Downloads for %s, AI summary, known issues, related builds and every WindowsForum thread about it.',
-            $line,
-            $build,
-            $channel ? ' (' . $channel . ')' : '',
-            $released ? ', released ' . $released : '',
-            $archList ? implode(' and ', array_map(fn ($r) => $r['arch'], $archList)) : 'all architectures'
-        );
+        // Builds Microsoft lists but the UUP feed never carried (most Server and
+        // older Windows 10 releases) have no downloads: say so, don't promise them.
+        $fromMicrosoft = ($bundle['source'] ?? 'uup') === 'microsoft';
+        if ($fromMicrosoft)
+        {
+            $description = sprintf(
+                '%s build %s%s%s. Microsoft\'s release details, known issues, related builds and every WindowsForum article and thread about it.',
+                $line,
+                $build,
+                ($bundle['kb'] ?? null) ? ' (' . $bundle['kb'] . ')' : '',
+                $released ? ', released ' . $released : ''
+            );
+        }
+        else
+        {
+            $description = sprintf(
+                '%s build %s%s%s. Downloads for %s, AI summary, known issues, related builds and every WindowsForum thread about it.',
+                $line,
+                $build,
+                $channel ? ' (' . $channel . ')' : '',
+                $released ? ', released ' . $released : '',
+                $archList ? implode(' and ', array_map(fn ($r) => $r['arch'], $archList)) : 'all architectures'
+            );
+        }
 
         $meta = [
-            'title'       => $line . ' build ' . $build . (($bundle['kb'] ?? null) ? ' (' . $bundle['kb'] . ')' : '') . ' — release notes, downloads, known issues',
+            'title'       => $line . ' build ' . $build . (($bundle['kb'] ?? null) ? ' (' . $bundle['kb'] . ')' : '') . ($fromMicrosoft ? ' — release notes, known issues' : ' — release notes, downloads, known issues'),
             'heading'     => $build,
             'description' => $description,
             'keywords'    => implode(', ', array_filter([$familyLabel . ' ' . $build, $line, $bundle['kb'] ?? null, $familyLabel . ' build ' . $build, $channel ? $familyLabel . ' ' . $channel : null])),
@@ -212,6 +228,7 @@ class Builds extends AbstractController
             'line'        => $line,
             'channel'     => $channel,
             'released'    => $released,
+            'noindex'     => ($bundle['indexable'] ?? true) === false,
         ];
 
         // "Ask about this build" posts into Windows Help & Support. Built from
