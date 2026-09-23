@@ -553,7 +553,7 @@ function AppContent() {
             className="focus:outline-none grid gap-4 @5xl:grid-cols-[minmax(0,1fr)_20rem] items-start"
           >
             <div className="space-y-4 min-w-0">
-              <VersionGuide tab={activeTab} builds={builds} activeTag={initialTag} onOpen={setSelectedBuild} />
+              <VersionGuide tab={activeTab} builds={builds} activeTag={initialTag} loading={query.isLoading} onOpen={setSelectedBuild} />
 
               <a href="#wf-channels-heading" className="@5xl:hidden flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 text-sm">
                 <span>

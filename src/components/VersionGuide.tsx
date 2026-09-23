@@ -15,6 +15,8 @@ interface VersionGuideProps {
   builds: BuildRecord[];
   /** Version line the page was opened on (/builds/windows11/24h2/). */
   activeTag?: string | null;
+  /** The build feed is still loading (Edge/Office rows derive from it). */
+  loading?: boolean;
   onOpen: (build: BuildRecord) => void;
 }
 
@@ -79,7 +81,7 @@ function Row({ row, active, onOpen }: { row: VersionRow; active: boolean; onOpen
   );
 }
 
-export const VersionGuide: React.FC<VersionGuideProps> = ({ tab, builds, activeTag, onOpen }) => {
+export const VersionGuide: React.FC<VersionGuideProps> = ({ tab, builds, activeTag, loading = false, onOpen }) => {
   const guide = PRODUCT_GUIDE[tab];
   const windows = isWindowsTab(tab);
   const lines = useQuery({
@@ -95,7 +97,8 @@ export const VersionGuide: React.FC<VersionGuideProps> = ({ tab, builds, activeT
     return officeRows(builds);
   }, [windows, tab, lines.data, builds]);
 
-  if (rows.length === 0) return null;
+  const pending = windows ? lines.isPending : loading;
+  if (rows.length === 0 && !pending) return null;
 
   // Ended versions fold away — unless nothing else is left (Windows 10).
   const live = rows.filter((r) => !r.ended);
@@ -129,9 +132,23 @@ export const VersionGuide: React.FC<VersionGuideProps> = ({ tab, builds, activeT
         <span>{col1}</span><span>Status</span><span>Latest build</span><span>{windows ? 'KB' : ''}</span><span>Released</span>
         <span className="text-right">{windows ? 'History' : ''}</span>
       </div>
-      <ul className="list-none">
-        {shown.map((row) => <Row key={row.key} row={row} active={isActive(row)} onOpen={onOpen} />)}
-      </ul>
+      {rows.length === 0 ? (
+        // Placeholder rows hold the table's height, so the release list below
+        // does not jump down when the data lands.
+        <ul className="list-none" aria-busy="true" aria-label="Loading versions">
+          {Array.from({ length: 4 }, (_, i) => (
+            <li key={i} className="flex items-center gap-4 px-4 sm:px-5 py-4 border-t border-gray-100 dark:border-gray-800">
+              <span className="h-4 w-12 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
+              <span className="h-4 w-28 rounded-full bg-gray-200 dark:bg-gray-800 animate-pulse" />
+              <span className="h-4 w-24 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="list-none">
+          {shown.map((row) => <Row key={row.key} row={row} active={isActive(row)} onOpen={onOpen} />)}
+        </ul>
+      )}
       {ended.length > 0 && (
         <details className="group border-t border-gray-100 dark:border-gray-800">
           <summary className="cursor-pointer list-none px-4 sm:px-5 py-2.5 text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline">

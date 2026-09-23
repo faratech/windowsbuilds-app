@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useLayoutEffect } from 'react';
 import { themes, type Theme } from '../styles/theme';
 
 type ThemeMode = 'light' | 'dark' | 'system';
@@ -45,7 +45,7 @@ const readXfStyleVariationCookie = (): 'light' | 'dark' | null => {
   return null;
 };
 
-const resolveActualMode = (): 'light' | 'dark' => {
+export const resolveActualMode = (): 'light' | 'dark' => {
   const html = document.documentElement;
 
   const colorScheme = normalizeThemeMode(html.getAttribute('data-color-scheme')?.toLowerCase());
@@ -64,6 +64,39 @@ const resolveActualMode = (): 'light' | 'dark' => {
 
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 };
+
+/**
+ * Mirror the resolved mode onto <html> (the `.dark` class, CSS variables and
+ * theme-color). main.tsx calls this before the first render: run only from
+ * the provider's effect, it landed after the first paint and dark-mode
+ * visitors got one bright light-theme frame.
+ */
+export function applyThemeMode(actualMode: 'light' | 'dark'): void {
+  const root = document.documentElement;
+  const theme = themes[actualMode];
+
+  root.setAttribute('data-wf-theme', actualMode);
+  root.style.colorScheme = actualMode;
+  root.classList.toggle('dark', actualMode === 'dark');
+
+  Object.entries(theme.colors).forEach(([key, value]) => {
+    root.style.setProperty(`--color-${key}`, value);
+  });
+
+  Object.entries(theme.shadows).forEach(([key, value]) => {
+    root.style.setProperty(`--shadow-${key}`, value);
+  });
+
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (metaThemeColor) {
+    metaThemeColor.setAttribute('content', theme.colors.background);
+  } else {
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    meta.content = theme.colors.background;
+    document.head.appendChild(meta);
+  }
+}
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
@@ -110,39 +143,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     };
   }, [themeMode]);
 
-  useEffect(() => {
-    // Update document class and CSS variables
-    const root = document.documentElement;
-    const theme = themes[actualMode];
-
-    root.setAttribute('data-wf-theme', actualMode);
-    root.style.colorScheme = actualMode;
-
-    if (actualMode === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-
-    // Set CSS variables for the theme
-    Object.entries(theme.colors).forEach(([key, value]) => {
-      root.style.setProperty(`--color-${key}`, value);
-    });
-
-    Object.entries(theme.shadows).forEach(([key, value]) => {
-      root.style.setProperty(`--shadow-${key}`, value);
-    });
-
-    // Update meta theme-color
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', theme.colors.background);
-    } else {
-      const meta = document.createElement('meta');
-      meta.name = 'theme-color';
-      meta.content = theme.colors.background;
-      document.head.appendChild(meta);
-    }
+  // Layout effect, not effect: a plain useEffect lands after the browser has
+  // painted, so a theme change showed one frame of the old palette.
+  useLayoutEffect(() => {
+    applyThemeMode(actualMode);
   }, [actualMode]);
 
   const handleSetThemeMode = (mode: ThemeMode) => {

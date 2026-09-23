@@ -146,6 +146,31 @@
   color: #f1f2f4;
 }
 
+/* The add-on renders a crawlable build list INSIDE the mount point (for
+   crawlers and no-JS visitors). With JS on it used to show for the 1–2 s the
+   app script takes to load, then get swapped for the app — a visible flash
+   of unrelated text. XenForo flips html.has-no-js -> has-js in <head>, so
+   this applies from the first paint. `visibility` (not display) keeps the
+   reserved height, and the delayed animation is a CSS-only failsafe: if the
+   app never mounts, the list reappears after 6 s. */
+html.has-js #windows-builds-root > .wb-ssr {
+  visibility: hidden;
+  animation: wf-ssr-reveal 0s linear 6s forwards;
+}
+@keyframes wf-ssr-reveal {
+  to { visibility: visible; }
+}
+/* ...and paint the app's own ground behind it, or the forum wallpaper shows
+   through the empty mount point until React paints .wf-app-shell. The
+   template's inline <head> script sets html.dark before first paint, so the
+   dark ground is right from frame one too. */
+html.has-js #windows-builds-root:has(> .wb-ssr) {
+  background: #f4f5f7;
+}
+html.has-js.dark #windows-builds-root:has(> .wb-ssr) {
+  background: #141516;
+}
+
 /* Product switcher: one segmented control. Scrolls sideways on narrow screens
    rather than wrapping into a 2+3 tile grid. */
 .wf-product-tabs {
