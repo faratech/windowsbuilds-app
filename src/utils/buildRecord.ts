@@ -27,7 +27,8 @@ export function buildKey(build: BuildRecord, index: number): string {
       ? String(build.ReleaseId)
       : `${build.Product}-${build.Version}-${build.Platform}-${build.Architecture}`;
   }
-  return `${build.channel}-${build.version}-${build.build || build.title || index}`;
+  if (build.uuid) return build.uuid;
+  return `${build.channel}-${build.version}-${build.build_number || build.build || build.title || index}`;
 }
 
 export function buildSearchText(build: BuildRecord): string {
@@ -39,21 +40,21 @@ export function buildSearchText(build: BuildRecord): string {
     return [build.Product, build.Version, build.Platform, build.Architecture]
       .filter(Boolean).join(' ');
   }
-  return [build.title, build.name, build.build, build.version, build.channel]
+  return [build.title, build.name, build.build_number, build.build, build.version, build.channel]
     .filter(Boolean).join(' ');
 }
 
 export function comparableVersion(build: BuildRecord): string {
   if (isWindowsBuild(build)) return build.build_number || build.build || '';
   if (isEdgeBuild(build)) return build.Version || '';
-  return build.build || build.version || '';
+  return build.build_number || build.build || build.version || '';
 }
 
 /** Raw date field for a record, in whatever shape its endpoint emits. */
 export function buildDateValue(build: BuildRecord): string | number | undefined {
   if (isWindowsBuild(build)) return build.created_timestamp ?? build.created;
   if (isEdgeBuild(build)) return build.PublishedTime;
-  return build.releaseDate;
+  return build.created_timestamp ?? build.releaseDate ?? build.release_date;
 }
 
 /** Epoch millis, UTC-correct. See `utils/dates`. */

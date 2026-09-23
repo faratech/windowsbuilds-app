@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
+import { MotionConfig } from 'framer-motion';
 import {
   Apps24Regular,
   Desktop24Regular,
@@ -11,20 +11,28 @@ import {
 } from '@fluentui/react-icons';
 import type { FluentIcon } from '@fluentui/react-icons';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { Header } from './components/layout/Header';
 import { BuildCard } from './components/BuildCard';
 import { BuildListItem } from './components/BuildListItem';
 import { BuildDetailsModal } from './components/BuildDetailsModal';
 import { StaticDownloads } from './components/StaticDownloads';
 import { Button } from './components/ui/Button';
-import { Card } from './components/ui/Card';
 import { SkeletonBuildItem } from './components/ui/Skeleton';
-import { Badge } from './components/ui/Badge';
 import { cn } from './utils/cn';
 import type { TabType, FilterOptions, SortBy } from './types';
 import { QuickFilterBar } from './components/filters/QuickFilterBar';
-import { LatestByVersion } from './components/LatestByVersion';
-import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from './utils/typeGuards';
+import { VersionGuide } from './components/VersionGuide';
+import { ReleaseTimeline, timelineRowCount } from './components/ReleaseTimeline';
+import { GuidePanel } from './components/GuidePanel';
+import {
+  UPDATE_KIND_META,
+  UPDATE_KINDS,
+  filterDays,
+  groupReleases,
+  isUpdateKind,
+  kindCounts,
+  recordKinds,
+  type UpdateKind,
+} from './utils/releaseGroups';import { isWindowsBuild, isEdgeBuild, isOfficeBuild, type BuildRecord } from './utils/typeGuards';
 import { buildKey, buildSearchText, buildTime, comparableVersion, buildDateValue, compareVersions } from './utils/buildRecord';
 import { ALL_DATES, MONTH_OPTIONS, fromControls, isRollingMonth, matchesDateFilter } from './utils/dateFilter';
 import { downloadTarget, OFFICE_DOWNLOAD_CENTER } from './utils/downloads';
@@ -67,15 +75,24 @@ const PRODUCT_TABS: ReadonlyArray<{
   { id: 'windows10', label: 'Windows 10', icon: Desktop24Regular, tone: 'windows10' },
   { id: 'windowsServer', label: 'Windows Server', icon: Server24Regular, tone: 'server' },
   { id: 'edge', label: 'Microsoft Edge', icon: Globe24Regular, tone: 'edge' },
-  { id: 'office365', label: 'Office 365', icon: Apps24Regular, tone: 'office' },
+  { id: 'office365', label: 'Microsoft 365', icon: Apps24Regular, tone: 'office' },
 ];
 
 const PAGE_SIZE = 30;
 
 const SELECT_CLASS =
-  'px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 ' +
+  'h-9 px-2.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm ' +
   'text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ' +
   'disabled:opacity-50 disabled:cursor-not-allowed';
+
+const VIEW_OPTIONS = [
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'grid', label: 'Grid' },
+  { id: 'list', label: 'List' },
+] as const;
+type ViewMode = (typeof VIEW_OPTIONS)[number]['id'];
+
+const PANEL = 'rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900';
 
 function AppContent() {
   const getInitialTab = useCallback((): TabType => {
@@ -123,7 +140,8 @@ function AppContent() {
   // tag seeds the search box so the list opens on that version line.
   const initialTag = useMemo(() => document.getElementById('windows-builds-root')?.dataset.tag ?? null, []);
   const [searchQuery, setSearchQuery] = useState(initialUrl.searchQuery || initialTag || '');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(initialUrl.viewMode);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialUrl.viewMode);
+  const [kind, setKind] = useState<UpdateKind | null>(isUpdateKind(initialUrl.kind) ? initialUrl.kind : null);
   const [selectedBuild, setSelectedBuild] = useState<BuildRecord | null>(null);
   const tabRefs = useRef<Partial<Record<TabType, HTMLButtonElement | null>>>({});
 
@@ -230,6 +248,8 @@ function AppContent() {
     // new one, describing a build that is no longer in the list.
     setSelectedBuild(null);
     setActiveTab(newTab);
+    // Update kinds differ per product (Edge has no setup/.NET), so start clean.
+    setKind(null);
 
     // Carry only cross-tab params onto the new section URL; per-tab selects
     // (platform, channel, download availability, channel chip) start fresh.
@@ -299,6 +319,7 @@ function AppContent() {
       setDownloadFilter(parsed.downloadFilter);
       setSearchQuery(parsed.searchQuery);
       setViewMode(parsed.viewMode);
+      setKind(isUpdateKind(parsed.kind) ? parsed.kind : null);
 
       setActiveTab(event.state?.tab ?? getInitialTab());
     };
@@ -318,6 +339,7 @@ function AppContent() {
       insider: filters.excludeInsider,
       sortBy: filters.sortBy,
       buildType: isWindowsTab(activeTab) ? filters.buildType : undefined,
+      kind: kind ?? undefined,
       officeChannel: activeTab === 'office365' ? (filters.officeChannel ?? undefined) : undefined,
       platform: activeTab === 'edge' ? platformFilter : 'Windows',
       downloadFilter: activeTab === 'edge' ? downloadFilter : 'All',
@@ -327,7 +349,7 @@ function AppContent() {
       viewMode,
     });
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${qs}`);
-  }, [activeTab, filters, platformFilter, downloadFilter, searchQuery, viewMode, initialTag]);
+  }, [activeTab, filters, platformFilter, downloadFilter, searchQuery, viewMode, initialTag, kind]);
 
   const isEdgeTab = activeTab === 'edge';
   const isOfficeTab = activeTab === 'office365';
@@ -342,7 +364,7 @@ function AppContent() {
   // the main-thread cost on mobile; the rest arrive on "Show more". The cap
   // is keyed to the list's inputs so any filter change starts over without
   // an effect.
-  const listSignature = JSON.stringify([activeTab, filters, platformFilter, downloadFilter, searchQuery]);
+  const listSignature = JSON.stringify([activeTab, filters, platformFilter, downloadFilter, searchQuery, kind, viewMode]);
   const [visible, setVisible] = useState({ signature: listSignature, count: PAGE_SIZE });
   const visibleCount = visible.signature === listSignature ? visible.count : PAGE_SIZE;
   const showMore = () => setVisible({ signature: listSignature, count: visibleCount + PAGE_SIZE });
@@ -402,6 +424,29 @@ function AppContent() {
     });
   }, [builds, query.dataUpdatedAt, searchQuery, filters.buildType, filters.officeChannel, platformFilter, downloadFilter, dateFilter, activeSortBy]);
 
+  // Timeline rows merge records that are one release (same KB across 24H2/25H2,
+  // one Edge version on five platforms). Kinds are resolved in same-day context,
+  // and grid/list filter on the resolved kind so every view agrees.
+  const allDays = useMemo(() => groupReleases(filteredBuilds), [filteredBuilds]);
+  const counts = useMemo(() => kindCounts(allDays), [allDays]);
+  const days = useMemo(() => filterDays(allDays, kind), [allDays, kind]);
+  const listBuilds = useMemo(() => {
+    if (!kind) return filteredBuilds;
+    const kinds = recordKinds(allDays);
+    return filteredBuilds.filter((b) => kinds.get(b) === kind);
+  }, [filteredBuilds, allDays, kind]);
+  const totalRows = days.reduce((n, d) => n + d.groups.length, 0);
+  const shownRows = viewMode === 'timeline' ? timelineRowCount(days, visibleCount) : Math.min(visibleCount, listBuilds.length);
+  const remaining = viewMode === 'timeline' ? totalRows - shownRows : listBuilds.length - shownRows;
+
+  const channelCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const b of builds) {
+      if (isWindowsBuild(b) && b.build_type) map.set(b.build_type, (map.get(b.build_type) ?? 0) + 1);
+    }
+    return map;
+  }, [builds]);
+
   const architectures = ['amd64', 'arm64', 'x86'];
   const platforms = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'];
   const downloadFilters = ['All', 'Download Available', 'No Downloads'];
@@ -427,38 +472,54 @@ function AppContent() {
     : null;
 
   const modalOpen = selectedBuild !== null;
+  const updatedAt = query.isSuccess && query.dataUpdatedAt > 0
+    ? new Date(query.dataUpdatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : '';
+  const chipClass = 'inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors';
+  const chipOn = 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900';
+  const chipOff = 'border-gray-300 bg-white text-gray-800 hover:border-gray-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200';
+  const availableKinds = UPDATE_KINDS.filter((k) => (counts.get(k) ?? 0) > 0 || k === kind);
 
   return (
     <>
       {/* `inert` keeps the page behind an open dialog out of the tab order and
           the accessibility tree. The dialog itself is portaled to <body>, so it
           sits outside this subtree and stays interactive. */}
-      <div className="wf-app-shell min-h-screen transition-colors duration-300" inert={modalOpen}>
-        <Header />
-
-        <main className="wf-frost max-w-[1200px] mx-auto my-6 rounded-xl px-4 sm:px-6 py-7">
-          <motion.div
-            className="mb-8 text-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-blue-700 dark:text-blue-300">
-              Real-Time Windows Updates
-            </h2>
-            <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 max-w-2xl mx-auto">
-              Every Windows, Edge and Office build as it ships — each one with a permanent page.
+      <div className="wf-app-shell @container" inert={modalOpen}>
+        <main className="max-w-[1320px] mx-auto px-3 sm:px-4 py-4 space-y-4">
+          {/* One intro line and the search box. The XenForo shell already
+              renders the page's single <h1>; the old banner + hero stacked
+              three more titles above the data. */}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <p className="text-[15px] text-gray-700 dark:text-gray-300 max-w-2xl">
+              Every Windows, Edge and Office update Microsoft ships, grouped by version — each build has its own page.
             </p>
-          </motion.div>
+            <div className="w-full sm:w-[22rem]">
+              <label htmlFor="build-search" className="sr-only">Search builds</label>
+              <div className="relative">
+                <svg className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  id="build-search"
+                  type="search"
+                  placeholder="Build, KB or version — e.g. 26100.9550, KB5124010"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-11 pl-9 pr-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-[15px] text-gray-900 dark:text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
 
-          <nav className="mb-6" aria-label="Product builds">
+          <nav aria-label="Product builds">
             <div className="wf-product-tabs" role="tablist" aria-label="Microsoft product builds">
               {PRODUCT_TABS.map((tab) => {
                 const Icon = tab.icon;
                 const selected = activeTab === tab.id;
 
                 return (
-                  <motion.button
+                  <button
                     key={tab.id}
                     type="button"
                     id={`product-tab-${tab.id}`}
@@ -472,13 +533,12 @@ function AppContent() {
                     className="wf-product-tab"
                     onClick={() => handleTabChange(tab.id)}
                     onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
-                    whileTap={{ scale: 0.97 }}
                   >
                     <span className={`wf-product-icon wf-product-icon--${tab.tone}`} aria-hidden="true">
                       <Icon />
                     </span>
                     <span>{tab.label}</span>
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>
@@ -488,342 +548,304 @@ function AppContent() {
             id="product-panel"
             role="tabpanel"
             aria-labelledby={`product-tab-${activeTab}`}
-            tabIndex={0}
+            tabIndex={-1}
             aria-busy={query.isLoading}
-            className="focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 rounded-lg"
+            className="focus:outline-none grid gap-4 @5xl:grid-cols-[minmax(0,1fr)_20rem] items-start"
           >
-            {activeTab === 'windows11' && <StaticDownloads />}
+            <div className="space-y-4 min-w-0">
+              <VersionGuide tab={activeTab} builds={builds} activeTag={initialTag} onOpen={setSelectedBuild} />
 
-          {isWindowsTab(activeTab) && (
-            <div className="mb-4 flex justify-center">
-              <a
-                href="https://windowsforum.com/windows-tutorials.305/how-to-create-a-windows-iso-using-uupdump-windows-11-24h2.338857/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-                <span className="font-medium">How to Create a Windows ISO using UUPDump</span>
+              <a href="#wf-channels-heading" className="@5xl:hidden flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 py-3 text-sm">
+                <span>
+                  <span className="block font-semibold text-gray-900 dark:text-white">Release, Beta, Experimental…?</span>
+                  <span className="text-gray-600 dark:text-gray-400">What the channels and update types mean</span>
+                </span>
+                <span aria-hidden="true" className="text-gray-500">↓</span>
               </a>
-            </div>
-          )}
 
-          {/* Microsoft ships no per-build Office installer, so the Download Center
-              is offered once here instead of on every row. */}
-          {isOfficeTab && (
-            <div className="mb-4 flex justify-center">
-              <a
-                href={OFFICE_DOWNLOAD_CENTER}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span className="font-medium">Microsoft 365 Download Center</span>
-              </a>
-            </div>
-          )}
+              <section aria-labelledby="wf-releases-heading" className={cn(PANEL, 'overflow-hidden')}>
+                <div className="px-4 sm:px-5 pt-4 pb-3 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-3">
+                      <h2 id="wf-releases-heading" className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {viewMode === 'timeline' ? 'Recent releases' : 'All builds'}
+                      </h2>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        <span aria-live="polite">{query.isLoading ? 'Loading builds…' : `${listBuilds.length} builds found`}</span>
+                        {updatedAt && !query.isLoading && <span> · updated {updatedAt}</span>}
+                      </span>
+                    </div>
+                    <div className="inline-flex rounded-lg bg-gray-100 dark:bg-gray-800 p-0.5" role="group" aria-label="View">
+                      {VIEW_OPTIONS.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          aria-pressed={viewMode === option.id}
+                          onClick={() => setViewMode(option.id)}
+                          className={cn(
+                            'h-8 px-3 rounded-md text-[13px] font-medium',
+                            viewMode === option.id
+                              ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm'
+                              : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white',
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-          <Card variant="default" className="mb-6">
-            <div className="p-6">
-              <div className="flex flex-wrap gap-4 items-center justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filters</h3>
-                  {query.isSuccess && query.dataUpdatedAt > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Updated {new Date(query.dataUpdatedAt).toLocaleTimeString()}</span>
+                  {availableKinds.length > 1 && (
+                    <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by update type">
+                      <button type="button" aria-pressed={kind === null} onClick={() => setKind(null)} className={cn(chipClass, kind === null ? chipOn : chipOff)}>
+                        Everything
+                      </button>
+                      {availableKinds.map((k) => {
+                        const meta = UPDATE_KIND_META[k];
+                        const active = kind === k;
+                        return (
+                          <button
+                            key={k}
+                            type="button"
+                            aria-pressed={active}
+                            title={meta.explain}
+                            onClick={() => setKind(active ? null : k)}
+                            className={cn(chipClass, active ? chipOn : chipOff)}
+                          >
+                            <span aria-hidden="true" className={cn('h-2 w-2 rounded-full', meta.dot)} />
+                            {meta.label}
+                            <span className="text-xs opacity-70">{counts.get(k) ?? 0}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant={viewMode === 'grid' ? 'primary' : 'ghost'}
-                    size="sm"
-                    aria-pressed={viewMode === 'grid'}
-                    onClick={() => setViewMode('grid')}
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                    Grid
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'primary' : 'ghost'}
-                    size="sm"
-                    aria-pressed={viewMode === 'list'}
-                    onClick={() => setViewMode('list')}
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                    List
-                  </Button>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="relative">
-                  <label htmlFor="build-search" className="sr-only">Search builds</label>
-                  <input
-                    id="build-search"
-                    type="search"
-                    placeholder="Search builds..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full px-4 py-2 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-
-                {isEdgeTab ? (
-                  <select
-                    aria-label="Filter by platform"
-                    value={platformFilter}
-                    onChange={(e) => setPlatformFilter(e.target.value)}
-                    className={SELECT_CLASS}
-                  >
-                    <option value="All">All Platforms</option>
-                    {platforms.map((platform) => (
-                      <option key={platform} value={platform}>{platform}</option>
-                    ))}
-                  </select>
-                ) : isOfficeTab ? (
-                  <select
-                    aria-label="Filter by Office channel"
-                    value={filters.officeChannel || 'All'}
-                    onChange={(e) => setFilters({ ...filters, officeChannel: e.target.value === 'All' ? undefined : e.target.value })}
-                    className={SELECT_CLASS}
-                  >
-                    <option value="All">All Channels</option>
-                    {officeChannels.map((channel) => (
-                      <option key={channel} value={channel}>{channel}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    aria-label="Filter by architecture"
-                    value={filters.selectedArch}
-                    onChange={(e) => setFilters({ ...filters, selectedArch: e.target.value })}
-                    className={SELECT_CLASS}
-                  >
-                    {architectures.map((arch) => (
-                      <option key={arch} value={arch}>{arch}</option>
-                    ))}
-                  </select>
-                )}
-
-                <select
-                  aria-label="Filter by date range"
-                  value={filters.selectedMonth}
-                  onChange={(e) => {
-                    const month = e.target.value;
-                    // Selecting a rolling window clears the year outright, so the
-                    // page can never claim "Last 60 Days" while showing all of 2024.
-                    setFilters({
-                      ...filters,
-                      selectedMonth: month,
-                      selectedYear: isRollingMonth(month) ? ALL_DATES : filters.selectedYear,
-                    });
-                  }}
-                  className={SELECT_CLASS}
-                >
-                  {MONTH_OPTIONS.map((month) => (
-                    <option key={month} value={month}>{month}</option>
-                  ))}
-                </select>
-
-                <select
-                  aria-label="Filter by year"
-                  title={rollingDates ? 'Year does not apply to a rolling date range' : undefined}
-                  value={rollingDates ? ALL_DATES : filters.selectedYear}
-                  disabled={rollingDates}
-                  onChange={(e) => setFilters({ ...filters, selectedYear: e.target.value })}
-                  className={SELECT_CLASS}
-                >
-                  {years.map((year) => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-
-                <select
-                  aria-label="Sort builds"
-                  value={activeSortBy}
-                  onChange={(e) => setFilters({ ...filters, sortBy: e.target.value as SortBy })}
-                  className={SELECT_CLASS}
-                >
-                  {sortOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mt-4 flex items-center gap-4 flex-wrap">
-                {isEdgeTab && (
-                  <select
-                    aria-label="Filter by download availability"
-                    value={downloadFilter}
-                    onChange={(e) => setDownloadFilter(e.target.value as DownloadFilter)}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {downloadFilters.map((filter) => (
-                      <option key={filter} value={filter}>{filter}</option>
-                    ))}
-                  </select>
-                )}
-
-                {!isOfficeTab && (
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={filters.excludeInsider}
-                      onChange={(e) => setFilters({ ...filters, excludeInsider: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                  {isWindowsTab(activeTab) && (
+                    <QuickFilterBar
+                      activeChannel={filters.buildType ?? null}
+                      counts={channelCounts}
+                      onSelect={(channel) => setFilters({ ...filters, buildType: channel ?? undefined })}
                     />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Exclude Insider Builds</span>
-                  </label>
-                )}
-
-                {/* Announcing "0 builds found" while the skeletons are still up
-                    is both wrong and, with aria-live, spoken aloud. */}
-                <Badge variant="info" size="sm">
-                  <span aria-live="polite">
-                    {query.isLoading ? 'Loading builds…' : `${filteredBuilds.length} builds found`}
-                  </span>
-                </Badge>
-              </div>
-            </div>
-          </Card>
-
-          {isWindowsTab(activeTab) && <LatestByVersion tab={activeTab} activeTag={initialTag} />}
-
-          {isWindowsTab(activeTab) && (
-            <QuickFilterBar
-              activeChannel={filters.buildType ?? null}
-              onSelect={(channel) => setFilters({ ...filters, buildType: channel ?? undefined })}
-            />
-          )}
-
-          {errorMessage && (
-            <div className="mb-6">
-              <Card variant="default" className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
-                <div className="p-6 flex items-center gap-3" role="alert">
-                  <svg className="w-6 h-6 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <h4 className="font-semibold text-red-900 dark:text-red-200">Error loading builds</h4>
-                    <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => query.refetch()} className="ml-auto">
-                    Retry
-                  </Button>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          <AnimatePresence mode="wait">
-            {query.isLoading ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                aria-busy="true"
-                aria-label="Loading builds"
-                className={cn(viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4')}
-              >
-                {Array.from({ length: 6 }, (_, i) => <SkeletonBuildItem key={`skeleton-${i}`} />)}
-              </motion.div>
-            ) : filteredBuilds.length === 0 && !errorMessage ? (
-              <motion.div key="empty" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <Card variant="default" className="text-center py-12">
-                  <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No builds found</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters or search query</p>
-                </Card>
-              </motion.div>
-            ) : (
-              <motion.div key="builds" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                {viewMode === 'list' && (
-                  <div className="hidden md:flex items-center gap-2 p-2 mb-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <div className="flex-shrink-0 w-48 lg:w-56 xl:w-64">Build</div>
-                    <div className="flex-shrink-0 w-20">Type</div>
-                    <div className="flex-shrink-0 w-16 text-center">
-                      {isEdgeTab ? 'Platform' : isOfficeTab ? 'Channel' : 'Arch'}
-                    </div>
-                    <div className="flex-shrink-0 w-20">Date</div>
-                    <div className="flex-shrink-0 w-24">Download</div>
-                    <div className="flex-grow" />
-                    <div className="flex-shrink-0 w-16">Actions</div>
-                  </div>
-                )}
-
-                <div className={cn(viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-2')}>
-                  {filteredBuilds.slice(0, visibleCount).map((build, index) =>
-                    viewMode === 'grid' ? (
-                      <BuildCard key={buildKey(build, index)} build={build} onClick={() => setSelectedBuild(build)} />
-                    ) : (
-                      <BuildListItem key={buildKey(build, index)} build={build} onClick={() => setSelectedBuild(build)} />
-                    ),
                   )}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      aria-label="Filter by date range"
+                      value={filters.selectedMonth}
+                      onChange={(e) => {
+                        const month = e.target.value;
+                        // Selecting a rolling window clears the year outright, so the
+                        // page can never claim "Last 60 Days" while showing all of 2024.
+                        setFilters({
+                          ...filters,
+                          selectedMonth: month,
+                          selectedYear: isRollingMonth(month) ? ALL_DATES : filters.selectedYear,
+                        });
+                      }}
+                      className={SELECT_CLASS}
+                    >
+                      {MONTH_OPTIONS.map((month) => (
+                        <option key={month} value={month}>{month}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      aria-label="Filter by year"
+                      title={rollingDates ? 'Year does not apply to a rolling date range' : undefined}
+                      value={rollingDates ? ALL_DATES : filters.selectedYear}
+                      disabled={rollingDates}
+                      onChange={(e) => setFilters({ ...filters, selectedYear: e.target.value })}
+                      className={SELECT_CLASS}
+                    >
+                      {years.map((year) => (
+                        <option key={year} value={year}>{year === ALL_DATES ? 'Any year' : year}</option>
+                      ))}
+                    </select>
+
+                    {isEdgeTab ? (
+                      <>
+                        <select
+                          aria-label="Filter by platform"
+                          value={platformFilter}
+                          onChange={(e) => setPlatformFilter(e.target.value)}
+                          className={SELECT_CLASS}
+                        >
+                          <option value="All">All platforms</option>
+                          {platforms.map((platform) => (
+                            <option key={platform} value={platform}>{platform}</option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="Filter by download availability"
+                          value={downloadFilter}
+                          onChange={(e) => setDownloadFilter(e.target.value as DownloadFilter)}
+                          className={SELECT_CLASS}
+                        >
+                          {downloadFilters.map((filter) => (
+                            <option key={filter} value={filter}>{filter === 'All' ? 'With or without download' : filter}</option>
+                          ))}
+                        </select>
+                      </>
+                    ) : isOfficeTab ? (
+                      <select
+                        aria-label="Filter by Office channel"
+                        value={filters.officeChannel || 'All'}
+                        onChange={(e) => setFilters({ ...filters, officeChannel: e.target.value === 'All' ? undefined : e.target.value })}
+                        className={SELECT_CLASS}
+                      >
+                        <option value="All">All channels</option>
+                        {officeChannels.map((channel) => (
+                          <option key={channel} value={channel}>{channel}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        aria-label="Filter by architecture"
+                        value={filters.selectedArch}
+                        onChange={(e) => setFilters({ ...filters, selectedArch: e.target.value })}
+                        className={SELECT_CLASS}
+                      >
+                        {architectures.map((arch) => (
+                          <option key={arch} value={arch}>{arch === 'amd64' ? 'x64 (amd64)' : arch}</option>
+                        ))}
+                      </select>
+                    )}
+
+                    {viewMode !== 'timeline' && (
+                      <select
+                        aria-label="Sort builds"
+                        value={activeSortBy}
+                        onChange={(e) => setFilters({ ...filters, sortBy: e.target.value as SortBy })}
+                        className={SELECT_CLASS}
+                      >
+                        {sortOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    )}
+
+                    {!isOfficeTab && (
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={filters.excludeInsider}
+                          onChange={(e) => setFilters({ ...filters, excludeInsider: e.target.checked })}
+                          className="w-4 h-4 accent-blue-600"
+                        />
+                        Hide pre-release builds
+                      </label>
+                    )}
+                  </div>
                 </div>
-                {filteredBuilds.length > visibleCount && (
-                  <div className="mt-6 text-center">
-                    <Button variant="outline" onClick={showMore}>
-                      Show more ({filteredBuilds.length - visibleCount} remaining)
+
+                {errorMessage && (
+                  <div className="mx-4 sm:mx-5 mb-4 flex items-center gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4" role="alert">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-red-900 dark:text-red-200">Error loading builds</h3>
+                      <p className="text-sm text-red-800 dark:text-red-300">{errorMessage}</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => query.refetch()} className="ml-auto">
+                      Retry
                     </Button>
                   </div>
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+
+                {query.isLoading ? (
+                    <div
+                      aria-busy="true"
+                      aria-label="Loading builds"
+                      className="px-4 sm:px-5 pb-5 space-y-3"
+                    >
+                      {Array.from({ length: 4 }, (_, i) => <SkeletonBuildItem key={`skeleton-${i}`} />)}
+                    </div>
+                  ) : listBuilds.length === 0 && !errorMessage ? (
+                    <div className="border-t border-gray-100 dark:border-gray-800 px-5 py-10 text-center">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">No builds found</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Try a longer date range, another update type, or a different search.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      {viewMode === 'timeline' ? (
+                        <ReleaseTimeline days={days} limit={visibleCount} onOpen={setSelectedBuild} />
+                      ) : (
+                        <div className="border-t border-gray-100 dark:border-gray-800 p-4 sm:p-5">
+                          {viewMode === 'list' && (
+                            <div className="hidden md:flex items-center gap-2 p-2 mb-2 text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                              <div className="flex-shrink-0 w-48 lg:w-56 xl:w-64">Build</div>
+                              <div className="flex-shrink-0 w-20">Type</div>
+                              <div className="flex-shrink-0 w-16 text-center">
+                                {isEdgeTab ? 'Platform' : isOfficeTab ? 'Channel' : 'Arch'}
+                              </div>
+                              <div className="flex-shrink-0 w-20">Date</div>
+                              <div className="flex-shrink-0 w-24">Download</div>
+                              <div className="flex-grow" />
+                              <div className="flex-shrink-0 w-16">Actions</div>
+                            </div>
+                          )}
+                          <div className={cn(viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-2')}>
+                            {listBuilds.slice(0, visibleCount).map((build, index) =>
+                              viewMode === 'grid' ? (
+                                <BuildCard key={buildKey(build, index)} build={build} onClick={() => setSelectedBuild(build)} />
+                              ) : (
+                                <BuildListItem key={buildKey(build, index)} build={build} onClick={() => setSelectedBuild(build)} />
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {remaining > 0 && (
+                        <div className="border-t border-gray-100 dark:border-gray-800 p-3 text-center">
+                          <Button variant="ghost" onClick={showMore}>
+                            Show more ({remaining} remaining)
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+              </section>
+            </div>
+
+            <aside className="space-y-4 min-w-0" aria-label="Guide">
+              {activeTab === 'windows11' && <StaticDownloads />}
+              {/* Microsoft ships no per-build Office installer, so the Download
+                  Center is offered once here instead of on every row. */}
+              {isOfficeTab && (
+                <a
+                  href={OFFICE_DOWNLOAD_CENTER}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(PANEL, 'flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-blue-700 dark:text-blue-300 hover:underline')}
+                >
+                  Microsoft 365 Download Center
+                  <span aria-hidden="true">↗</span>
+                </a>
+              )}
+              <GuidePanel tab={activeTab} builds={builds} />
+            </aside>
           </section>
         </main>
 
-        <footer className="mt-10 pb-10 px-4">
-          <div className="wf-frost rounded-xl max-w-[1200px] mx-auto px-6 py-5 text-center space-y-2">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Build information courtesy of{' '}
-              <a href="https://uupdump.net" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                UUPDump.net
-              </a>
-              {' and '}
-              <span className="font-medium">Microsoft Corporation</span>
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Download official Windows directly from{' '}
-              <a href="https://www.microsoft.com/software-download/windows11" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                Microsoft Windows 11
-              </a>
-              {' | '}
-              <a href="https://www.microsoft.com/software-download/windows10" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                Windows 10
-              </a>
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 pt-2 max-w-2xl mx-auto leading-relaxed">
-              WindowsForum.com is an independent community website and is not affiliated with,
-              endorsed by, or sponsored by Microsoft Corporation. Windows is a trademark of the
-              Microsoft group of companies.
-            </p>
-          </div>
+        <footer className="max-w-[1320px] mx-auto px-4 pt-2 pb-8 text-center space-y-1.5 text-sm text-gray-600 dark:text-gray-400">
+          <p>
+            Build information courtesy of{' '}
+            <a href="https://uupdump.net" target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 hover:underline font-medium">
+              UUPDump.net
+            </a>
+            {' and Microsoft. Official downloads: '}
+            <a href="https://www.microsoft.com/software-download/windows11" target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 hover:underline font-medium">
+              Windows 11
+            </a>
+            {' · '}
+            <a href="https://www.microsoft.com/software-download/windows10" target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 hover:underline font-medium">
+              Windows 10
+            </a>
+          </p>
+          <p className="text-xs max-w-2xl mx-auto leading-relaxed">
+            WindowsForum.com is an independent community website and is not affiliated with,
+            endorsed by, or sponsored by Microsoft Corporation. Windows is a trademark of the
+            Microsoft group of companies.
+          </p>
         </footer>
       </div>
 

@@ -32,7 +32,7 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, onClick }) 
   const getBuildNumber = () => {
     if (isWindowsBuild(build)) return build.build_number || build.build || '';
     if (isEdgeBuild(build)) return build.Version || '';
-    return build.build || build.version || '';
+    return build.build_number || build.build || build.version || '';
   };
 
   const title = getTitle();

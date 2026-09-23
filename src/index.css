@@ -134,119 +134,77 @@
   }
 }
 
-/* The fixed Windows 24H4 wallpaper behind a frosted panel — scoped to the app
-   root (NOT body) so it never clobbers the host XenForo page when embedded. */
+/* Plain ground, no wallpaper: the old fixed 24H4 wallpaper under a frosted
+   panel cost contrast behind every row of data. Scoped to the app root (NOT
+   body) so it never clobbers the host XenForo page. */
 .wf-app-shell {
-  background: #eff5f6 url("/builds/bg-24H4_50.webp") no-repeat fixed center top / cover;
+  background: #f4f5f7;
+  color: #15181d;
 }
 .dark .wf-app-shell {
-  background: #1f2021 url("/builds/bg-24H4-oled_50.webp") no-repeat fixed center top / cover;
+  background: #141516;
+  color: #f1f2f4;
 }
 
-/* Signature WindowsForum frosted/acrylic content column over the wallpaper.
-   Solid .wf-block cards sit on top of this and read crisply. */
-.wf-frost {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  border: 1px solid #ebebeb;
-  box-shadow: rgba(0, 0, 0, 0.132) 0 1.6px 3.6px 0, rgba(0, 0, 0, 0.11) 0 0.3px 0.9px 0;
-}
-.dark .wf-frost {
-  background: rgba(31, 32, 33, 0.62);
-  border-color: #272729;
-}
-
-/* Product navigation is the app's one expressive moment: familiar Fluent
-   silhouettes sit on bright Windows-style tiles while the controls themselves
-   stay quiet, dense, and readable in both themes. */
+/* Product switcher: one segmented control. Scrolls sideways on narrow screens
+   rather than wrapping into a 2+3 tile grid. */
 .wf-product-tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #e4e7eb;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.wf-product-tabs::-webkit-scrollbar { display: none; }
+.dark .wf-product-tabs { background: #23262a; }
 
 .wf-product-tab {
-  min-width: 0;
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid rgba(96, 94, 92, 0.28);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #242424;
-  font-size: 0.875rem;
-  font-weight: 650;
-  line-height: 1.2;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 100ms ease-out, border-color 100ms ease-out,
-    box-shadow 100ms ease-out;
-}
-
-.wf-product-tab:hover {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(15, 108, 189, 0.65);
-}
-
-.wf-product-tab[aria-selected="true"] {
-  background: #fff;
-  border-color: #0f6cbd;
-  box-shadow: inset 0 -3px 0 #0f6cbd,
-    rgba(0, 0, 0, 0.132) 0 1.6px 3.6px 0,
-    rgba(0, 0, 0, 0.11) 0 0.3px 0.9px 0;
-}
-
-.wf-product-tab:focus-visible {
-  outline: 2px solid #0f6cbd;
-  outline-offset: 2px;
-}
-
-.dark .wf-product-tab {
-  background: rgba(41, 41, 41, 0.78);
-  border-color: rgba(255, 255, 255, 0.17);
-  color: #f5f5f5;
-}
-
-.dark .wf-product-tab:hover {
-  background: rgba(55, 55, 55, 0.96);
-  border-color: #4ea3e6;
-}
-
-.dark .wf-product-tab[aria-selected="true"] {
-  background: #292929;
-  border-color: #4ea3e6;
-  box-shadow: inset 0 -3px 0 #4ea3e6,
-    rgba(0, 0, 0, 0.4) 0 1.6px 3.6px 0,
-    rgba(0, 0, 0, 0.3) 0 0.3px 0.9px 0;
-}
-
-.wf-product-icon {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  flex: 1 0 auto;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  padding: 6px 14px;
   border-radius: 9px;
+  color: #3a414b;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 100ms ease-out, color 100ms ease-out;
+}
+.wf-product-tab:hover { color: #15181d; background: rgba(255, 255, 255, 0.55); }
+.wf-product-tab[aria-selected="true"] {
+  background: #fff;
+  color: #15181d;
+  box-shadow: 0 1px 2px rgba(20, 24, 29, 0.14), 0 0 0 1px rgba(20, 24, 29, 0.04);
+}
+.wf-product-tab:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 1px; }
+.dark .wf-product-tab { color: #c3c8cf; }
+.dark .wf-product-tab:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
+.dark .wf-product-tab[aria-selected="true"] { background: #3a3e44; color: #fff; box-shadow: none; }
+
+.wf-product-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
   color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25),
-    rgba(0, 0, 0, 0.18) 0 1px 2px;
 }
+.wf-product-icon svg { width: 16px; height: 16px; }
 
-.wf-product-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.wf-product-icon--windows11 { background: linear-gradient(145deg, #3cc7ff, #0067c0 68%); }
-.wf-product-icon--windows10 { background: linear-gradient(145deg, #4f8cff, #174ea6 70%); }
-.wf-product-icon--server { background: linear-gradient(145deg, #9b6cff, #6540b8 70%); }
-.wf-product-icon--edge { background: linear-gradient(145deg, #30d5c8, #0078d4 70%); }
-.wf-product-icon--office { background: linear-gradient(145deg, #ff9f43, #d83b01 70%); }
+.wf-product-icon--windows11 { background: #0067c0; }
+.wf-product-icon--windows10 { background: #174ea6; }
+.wf-product-icon--server { background: #5b3aa8; }
+.wf-product-icon--edge { background: #0078d4; }
+.wf-product-icon--office { background: #c43e1c; }
 
 /* Solid channel/kind/status pills must retain opaque text. Quick-filter chips
    used to fade the whole control to 70%, which blended white into gray and
@@ -254,35 +212,6 @@
 .wf-solid-badge,
 .dark .wf-solid-badge {
   color: #fff;
-}
-
-@media (max-width: 720px) {
-  .wf-product-tabs {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  .wf-product-tab:nth-child(-n + 3) { grid-column: span 2; }
-  .wf-product-tab:nth-child(n + 4) { grid-column: span 3; }
-
-  .wf-product-tab {
-    min-height: 62px;
-    flex-direction: column;
-    gap: 5px;
-    padding: 6px 4px;
-    font-size: 0.75rem;
-    text-align: center;
-  }
-
-  .wf-product-icon {
-    width: 32px;
-    height: 32px;
-    flex-basis: 32px;
-  }
-
-  .wf-product-icon svg {
-    width: 21px;
-    height: 21px;
-  }
 }
 
 @media (forced-colors: active) {

@@ -43,14 +43,21 @@ export interface EdgeArtifact {
 }
 
 export interface OfficeBuild {
-  id: string;
+  /** Legacy fixture field; the live feed sends `uuid` instead. */
+  id?: string;
+  /** Present on live records — which is why `isWindowsBuild` cannot key on `uuid` alone. */
+  uuid?: string;
   title?: string;
+  build_number?: string;
   name?: string;
   build?: string;
   version: string;
   channel: string;
   build_type?: ReleaseChannel;
-  releaseDate: string;
+  releaseDate?: string;
+  /** Live feed date fields (epoch seconds / "September 22, 2026"). */
+  created_timestamp?: number;
+  release_date?: string;
   latest?: boolean;
   notes?: string;
 }

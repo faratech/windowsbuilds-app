@@ -79,7 +79,7 @@ export const BuildDetailsModal: React.FC<BuildDetailsModalProps> = ({ build, isO
   const getBuildNumber = () => {
     if (isWindowsBuild(build)) return build.build_number || build.build || 'N/A';
     if (isEdgeBuild(build)) return build.Version || 'N/A';
-    return build.build || build.version || 'N/A';
+    return build.build_number || build.build || build.version || 'N/A';
   };
 
   const getPlatformOrArchitecture = () => {

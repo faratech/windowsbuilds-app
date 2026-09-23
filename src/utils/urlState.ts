@@ -14,7 +14,7 @@ export const PLATFORMS = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'] as cons
 export const SORT_VALUES = [
   'date-desc', 'date-asc', 'build-desc', 'build-asc', 'version-desc', 'version-asc',
 ] as const;
-export const VIEW_MODES = ['grid', 'list'] as const;
+export const VIEW_MODES = ['timeline', 'grid', 'list'] as const;
 
 export type DownloadFilter = 'All' | 'Download Available' | 'No Downloads';
 
@@ -35,6 +35,8 @@ export interface UrlFilters {
   insider: boolean;
   sortBy: SortBy;
   buildType?: string;
+  /** Update-kind chip (security, preview, …); validated by the caller. */
+  kind?: string;
   officeChannel?: string;
   platform: string;
   downloadFilter: DownloadFilter;
@@ -51,7 +53,7 @@ export const URL_FILTER_DEFAULTS: UrlFilters = {
   platform: 'Windows',
   downloadFilter: 'All',
   searchQuery: '',
-  viewMode: 'grid',
+  viewMode: 'timeline',
 };
 
 /** Params that stay meaningful across product tabs (kept on tab switches). */
@@ -81,6 +83,9 @@ export function parseUrlFilters(search: string): UrlFilters {
 
   const type = one(params, 'type');
   if (type && /^[\w-]{1,20}$/.test(type)) parsed.buildType = type;
+
+  const kind = one(params, 'kind');
+  if (kind && /^[a-z]{1,20}$/.test(kind)) parsed.kind = kind;
 
   const channel = one(params, 'channel');
   if (channel) parsed.officeChannel = channel;
@@ -119,6 +124,7 @@ export function serializeUrlFilters(filters: UrlFilters): string {
   if (filters.insider) params.set('insider', '1');
   if (filters.sortBy !== d.sortBy) params.set('sort', filters.sortBy);
   if (filters.buildType) params.set('type', filters.buildType);
+  if (filters.kind) params.set('kind', filters.kind);
   if (filters.officeChannel) params.set('channel', filters.officeChannel);
   if (filters.platform !== d.platform) params.set('platform', filters.platform);
   const dl = DL_PARAMS[filters.downloadFilter];

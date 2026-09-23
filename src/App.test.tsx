@@ -13,6 +13,7 @@ vi.mock('./services/api', async (importOriginal) => {
       fetchWindowsBuilds: vi.fn(),
       fetchEdgeBuilds: vi.fn(),
       fetchOfficeBuilds: vi.fn(),
+      fetchLines: vi.fn().mockResolvedValue([]),
       fetchBuildSummary: vi.fn().mockResolvedValue('A summary.'),
     },
   };
@@ -77,7 +78,7 @@ describe('channel filter scoping across tabs', () => {
     await buildCount(1);
 
     // ...then switch to Office, where the chip bar is not even rendered.
-    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Microsoft 365/ }));
 
     // Before the fix this showed 1 of 4: `build_type !== 'beta'` was applied to
     // Office records too, with no visible control to clear it.
@@ -105,7 +106,7 @@ describe('channel filter scoping across tabs', () => {
     await buildCount(3);
 
     await user.click(screen.getByRole('button', { name: /Beta channel build/i }));
-    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Microsoft 365/ }));
     await buildCount(4);
 
     await user.click(screen.getByRole('tab', { name: /Windows 11/ }));
@@ -156,6 +157,8 @@ describe('network traffic', () => {
 
     const before = vi.mocked(apiService.fetchWindowsBuilds).mock.calls.length;
 
+    // Sort applies to the grid/list views; the timeline is always newest-first.
+    await user.click(screen.getByRole('button', { name: 'List' }));
     await user.selectOptions(screen.getByLabelText('Sort builds'), 'date-asc');
     await user.type(screen.getByLabelText('Search builds'), 'Beta');
     await user.click(screen.getByRole('button', { name: /Beta channel build/i }));
@@ -198,7 +201,7 @@ describe('tab navigation', () => {
     expect(tabs).toHaveLength(5);
     expect(screen.getByRole('tab', { name: /Windows 11/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: /Windows 11/ })).toHaveAttribute('aria-controls', 'product-panel');
-    expect(screen.getByRole('tab', { name: /Office 365/ })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: /Microsoft 365/ })).toHaveAttribute('aria-selected', 'false');
 
     const panel = screen.getByRole('tabpanel');
     expect(panel).toHaveAttribute('id', 'product-panel');
@@ -218,8 +221,8 @@ describe('tab navigation', () => {
     expect(screen.getByRole('tab', { name: /Windows 10/ })).toHaveAttribute('aria-selected', 'true');
 
     await user.keyboard('{End}');
-    expect(screen.getByRole('tab', { name: /Office 365/ })).toHaveFocus();
-    expect(screen.getByRole('tab', { name: /Office 365/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Microsoft 365/ })).toHaveFocus();
+    expect(screen.getByRole('tab', { name: /Microsoft 365/ })).toHaveAttribute('aria-selected', 'true');
 
     await user.keyboard('{Home}');
     expect(windows11).toHaveFocus();
@@ -235,7 +238,7 @@ describe('tab navigation', () => {
     await user.click(screen.getByRole('tab', { name: /Windows 11/ }));
     expect(pushState).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Microsoft 365/ }));
     expect(pushState).toHaveBeenCalledTimes(1);
   });
 
@@ -253,7 +256,7 @@ describe('tab navigation', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
-    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Microsoft 365/ }));
     await buildCount(4);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -265,7 +268,7 @@ describe('office downloads', () => {
     render(<App />);
     await buildCount(3);
 
-    await user.click(screen.getByRole('tab', { name: /Office 365/ }));
+    await user.click(screen.getByRole('tab', { name: /Microsoft 365/ }));
     await buildCount(4);
 
     expect(screen.getByRole('link', { name: /Microsoft 365 Download Center/i }))

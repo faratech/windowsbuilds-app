@@ -364,10 +364,10 @@ class Builds extends AbstractController
     {
         // Get React asset files. NOTE: these two lines are rewritten by
         // /web/windowsbuilds_app/update-controller.sh via sed after every SPA
-        // deploy — keep the exact `'css' => '/js/WindowsBuilds/index-D6E2XO9B.css'` shape.
+        // deploy — keep the exact `'css' => '/js/WindowsBuilds/index-DgCvHX7L.css'` shape.
         $assets = [
-            'css' => '/js/WindowsBuilds/index-D6E2XO9B.css',
-            'js' => '/js/WindowsBuilds/index-DtEBLGy3.js',
+            'css' => '/js/WindowsBuilds/index-DgCvHX7L.css',
+            'js' => '/js/WindowsBuilds/index-Bkm319Dz.js',
             'vendor' => '/js/WindowsBuilds/vendor-vVBNBLL0.js',
         ];
 
