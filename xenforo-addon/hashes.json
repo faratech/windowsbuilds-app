@@ -2,7 +2,7 @@
     "src/addons/WindowsBuilds/addon.json": "3114ee620d7e0e92d072d7910f16e3eed826bb5b494a6cf1ed51adf4ad2e5a91",
     "src/addons/WindowsBuilds/CLAUDE.md": "04ac713b3b97fe1355c96927570669a7dde484c809cbf378e0cf8ae2ab050eb8",
     "src/addons/WindowsBuilds/Cron/GenerateSitemap.php": "37578f65bf4cf63bb3d732c217a95da209b4fe6c5826570fbe1b2ad9a7d4c783",
-    "src/addons/WindowsBuilds/Pub/Controller/Builds.php": "3b351753443ecfc7971a532be82bdad961e467e936a2885e86492a7ecfca4daf",
+    "src/addons/WindowsBuilds/Pub/Controller/Builds.php": "ba0b32a52f9d84547d5d125522126acf6171ce49fc823635b19d3185b7654f09",
     "src/addons/WindowsBuilds/Service/EdgeUpdates.php": "7dd165bca8a18ace3c6281d04571026c225631aa2838a7a0f6421bb9b6bab566",
     "src/addons/WindowsBuilds/Service/ExtractCab.php": "ebe28cc6c103699c32c5dbe3d97d75f6e139ed8202970ce3b9afd6e2f5e436dd",
     "src/addons/WindowsBuilds/Service/Office365.php": "c30b6507221f2d296ffa9be744434534da5fee89e1f4f1fd9b9573aee0cec9bb",
@@ -34,8 +34,8 @@
     "src/addons/WindowsBuilds/_data/routes.xml": "7342a8553df39615b7116049f97e4d0b78d2704318c2e6a5a8d843297cdd0bfe",
     "src/addons/WindowsBuilds/_data/style_properties.xml": "8b8690a8512f01f219dd2da76e3d0c5f62afc1f317b87794a7331c859c36a7a8",
     "src/addons/WindowsBuilds/_data/style_property_groups.xml": "68e1879cb3846c42d978487aa8d5145ff3335fc39e58016878824d5cf3fd684c",
-    "src/addons/WindowsBuilds/_data/templates.xml": "7f8681cac5bad8c2991862491094bba53540577c6b7b3613016bc9e25b84a24d",
-    "src/addons/WindowsBuilds/_data/template_modifications.xml": "3b54b7df00a6a4a18c5e012b6e2588e35c23aaa13a5fc227f08646a97590d778",
+    "src/addons/WindowsBuilds/_data/templates.xml": "f4477244a149b3494128af67c971e28af9d3c54a9bb164bdc237264d7a5a55f1",
+    "src/addons/WindowsBuilds/_data/template_modifications.xml": "d93414a10649461b5930419c246beeff64288dedfa0c579ce81b0e95d6df9d46",
     "src/addons/WindowsBuilds/_data/widget_definitions.xml": "37e46965256430f24004c2e7f08ba08f9b0d1cbcc4d70e84b3f4e3ffb713e64b",
     "src/addons/WindowsBuilds/_data/widget_positions.xml": "a29cee66134f6bc5d75ed9df1eef21096c24401915c5b5c774389c3d7bb2d5b3"
 }

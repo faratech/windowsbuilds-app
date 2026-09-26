@@ -45,7 +45,9 @@
     <link rel="canonical" href="{$meta.canonical}" />
     <meta property="og:title" content="{$meta.title}" />
     <meta property="og:description" content="{$meta.description}" />
+    <meta property="og:type" content="website" />
     <meta property="og:url" content="{$meta.canonical}" />
+    <meta property="og:site_name" content="WindowsForum" />
     <meta property="twitter:title" content="{$meta.title}" />
     <meta property="twitter:description" content="{$meta.description}" />
 </xf:head>
@@ -227,6 +229,7 @@
     <meta property="og:title" content="{$meta.title}" />
     <meta property="og:description" content="{$meta.description}" />
     <meta property="og:url" content="{$meta.canonical}" />
+    <meta property="og:site_name" content="WindowsForum" />
     <meta property="twitter:title" content="{$meta.title}" />
     <meta property="twitter:description" content="{$meta.description}" />
     <xf:if is="$b.related.prev"><link rel="prev" href="{$b.related.prev.url}" /></xf:if>

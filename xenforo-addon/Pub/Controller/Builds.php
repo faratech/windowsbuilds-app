@@ -249,6 +249,12 @@ class Builds extends AbstractController
         $view->setPageParams([
             'pageTitle'       => $meta['title'],
             'pageDescription' => $meta['description'],
+            // Tells the wf_builds_suppress_default_meta PAGE_CONTAINER modification
+            // to skip XF's fallback title/description/site_name/type/share_url
+            // macros — the templates emit their own set; leaving both in produced
+            // duplicate og:title/og:url and truncated description tags.
+            // (Set in both renderBuildPage and renderBuildsPage.)
+            'wbBuildsActive'  => true,
         ]);
         return $view;
     }
@@ -390,6 +396,9 @@ class Builds extends AbstractController
         $view->setPageParams([
             'pageTitle'       => $meta['title'],
             'pageDescription' => $meta['description'],
+            // See renderBuildPage: suppresses XF's fallback metadata
+            // macros via wf_builds_suppress_default_meta.
+            'wbBuildsActive'  => true,
         ]);
         return $view;
     }

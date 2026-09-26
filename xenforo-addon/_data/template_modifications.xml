@@ -1,2 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<template_modifications/>
+<template_modifications>
+    <modification modification_key="wf_builds_suppress_default_meta" type="public" template="PAGE_CONTAINER"
+                  description="WindowsBuilds: skip XF's duplicated OG title/desc/share macros on /builds pages."
+                  execution_order="20" enabled="1" action="str_replace" addon_id="WindowsBuilds">
+        <find><![CDATA[<xf:if is="!$head.meta_site_name && $siteName is not empty">
+		<xf:macro id="metadata_macros::site_name" arg-siteName="{$siteName}" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_type">
+		<xf:macro id="metadata_macros::type" arg-type="website" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_title">
+		<xf:macro id="metadata_macros::title" arg-title="{{ page_title() ?: $siteName }}" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_description && $description is not empty && $pageDescriptionMeta">
+		<xf:macro id="metadata_macros::description" arg-description="{$description}" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_share_url">
+		<xf:macro id="metadata_macros::share_url" arg-shareUrl="{$xf.fullUri}" arg-output="{{ true }}" />
+	</xf:if>]]></find>
+        <replace><![CDATA[<xf:if is="!$wbBuildsActive">
+<xf:if is="!$head.meta_site_name && $siteName is not empty">
+		<xf:macro id="metadata_macros::site_name" arg-siteName="{$siteName}" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_type">
+		<xf:macro id="metadata_macros::type" arg-type="website" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_title">
+		<xf:macro id="metadata_macros::title" arg-title="{{ page_title() ?: $siteName }}" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_description && $description is not empty && $pageDescriptionMeta">
+		<xf:macro id="metadata_macros::description" arg-description="{$description}" arg-output="{{ true }}" />
+	</xf:if>
+	<xf:if is="!$head.meta_share_url">
+		<xf:macro id="metadata_macros::share_url" arg-shareUrl="{$xf.fullUri}" arg-output="{{ true }}" />
+	</xf:if></xf:if>]]></replace>
+    </modification>
+</template_modifications>
