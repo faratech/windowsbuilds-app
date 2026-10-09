@@ -11,9 +11,13 @@
 // "security" on the second Tuesday, else a plain cumulative update.
 
 import { isEdgeBuild, isOfficeBuild, isWindowsBuild, type BuildRecord } from './typeGuards';
-import { buildTime, compareVersions } from './buildRecord';
+import { buildDateValue, compareVersions } from './buildRecord';
+import { buildTimestamp } from './dates';
+
 import { buildNumberOf, buildPermalink, versionTag, windowsFamily } from './permalink';
 import { channelMeta } from '../config/releaseChannels';
+
+const releaseTime = (build: BuildRecord) => buildTimestamp(buildDateValue(build));
 
 export type UpdateKind =
   | 'security'
@@ -137,6 +141,8 @@ export function intrinsicKind(build: BuildRecord): UpdateKind {
   const title = build.title || '';
   if (build.kind === 'dotnet' || /\.NET/i.test(title)) return 'dotnet';
   if (/\bOOBE\b|setup dynamic|safe ?os/i.test(title)) return 'setup';
+  if (/\sB$/.test(build.update_type ?? '')) return 'security';
+  if (/\s[CD]$/.test(build.update_type ?? '')) return 'preview';
   if (build.kind === 'enablement' || /enablement/i.test(title)) return 'enablement';
   if (build.kind === 'hotpatch' || /hotpatch/i.test(title)) return 'hotpatch';
   if (/preview update|non-security preview/i.test(title)) return 'preview';
@@ -233,7 +239,7 @@ function windowsGroups(builds: BuildRecord[], day: string): ReleaseGroup[] {
       if (!number || seen.has(number)) continue;
       seen.add(number);
       const family = windowsFamily(b.title);
-      const tag = family ? versionTag(b.title, number, family) : null;
+      const tag = family ? versionTag(b.title, number, family, b.version_tag) : null;
       items.push({
         label: tag ? (family === 'windowsserver' ? `Server ${tag}` : tag) : '',
         number,
@@ -267,7 +273,7 @@ function windowsGroups(builds: BuildRecord[], day: string): ReleaseGroup[] {
       title,
       detail: summary,
       kb,
-      time: Math.max(...members.map(buildTime)),
+      time: Math.max(...members.map(releaseTime)),
       items,
       primary: members.find((m) => isWindowsBuild(m) && m.summary) ?? first,
       members,
@@ -297,7 +303,7 @@ function edgeGroups(builds: BuildRecord[], day: string): ReleaseGroup[] {
         cves ? `fixes ${cves} security ${cves === 1 ? 'vulnerability' : 'vulnerabilities'}` : null,
       ].filter(Boolean).join(' · ') || null,
       kb: null,
-      time: Math.max(...members.map(buildTime)),
+      time: Math.max(...members.map(releaseTime)),
       items: [],
       primary: edge.find((b) => b.Platform === 'Windows') ?? first,
       members,
@@ -326,7 +332,7 @@ function officeGroups(builds: BuildRecord[], day: string): ReleaseGroup[] {
       title: `${isVersionCode ? `Version ${o0.version}` : (o0.channel || '').replace(/\s*Perpetual.*$/i, '') || o0.version}${number ? ` (Build ${number})` : ''}`,
       detail: channels.join(', ') || null,
       kb: null,
-      time: Math.max(...members.map(buildTime)),
+      time: Math.max(...members.map(releaseTime)),
       items: [],
       primary: release ?? o0,
       members,
@@ -340,7 +346,7 @@ const DAY_LABEL: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short'
 export function groupReleases(builds: BuildRecord[]): ReleaseDay[] {
   const byDay = new Map<string, BuildRecord[]>();
   for (const b of builds) {
-    const day = utcDay(buildTime(b));
+    const day = utcDay(releaseTime(b));
     if (!day) continue;
     byDay.set(day, [...(byDay.get(day) ?? []), b]);
   }

@@ -112,7 +112,7 @@ class Builds extends AbstractController
     protected function fetchDetailApi(string $path): ?array
     {
         $cache = \XF::app()->cache();
-        $cacheKey = 'wf_build_api_' . md5($path);
+        $cacheKey = 'wf_build_api_' . md5($path . ':' . \WindowsBuilds\Service\ReleaseClassifier::generation());
         if ($cache)
         {
             $cached = $cache->fetch($cacheKey);
@@ -178,7 +178,8 @@ class Builds extends AbstractController
         $tag = $bundle['tag'] ?? null;
         $channel = self::channelLabel($bundle['build_type'] ?? '');
         $line = $tag ? ($familyLabel . ' ' . $tag) : $familyLabel;
-        $released = !empty($bundle['created']) ? date('F j, Y', (int) $bundle['created']) : null;
+        $released = !empty($bundle['release_date']) ? gmdate('F j, Y', strtotime($bundle['release_date'] . 'T12:00:00Z'))
+            : (!empty($bundle['created']) ? gmdate('F j, Y', (int) $bundle['created']) : null);
 
         $archList = [];
         $seenArch = [];
@@ -325,7 +326,7 @@ class Builds extends AbstractController
         ];
         if (!empty($bundle['created_iso']))
         {
-            $software['datePublished'] = $bundle['created_iso'];
+            $software['datePublished'] = $bundle['release_date'] ?? $bundle['created_iso'];
         }
         if ($archList)
         {
@@ -373,7 +374,7 @@ class Builds extends AbstractController
         // deploy — keep the exact `'css' => '/js/WindowsBuilds/index-CDkZA9b3.css'` shape.
         $assets = [
             'css' => '/js/WindowsBuilds/index-CDkZA9b3.css',
-            'js' => '/js/WindowsBuilds/index-Cgdc7n38.js',
+            'js' => '/js/WindowsBuilds/index-Cy7pUGSN.js',
             'vendor' => '/js/WindowsBuilds/vendor-vVBNBLL0.js',
         ];
 
@@ -391,6 +392,7 @@ class Builds extends AbstractController
             'tag'         => $tag,
             'meta'        => $meta,
             'topBuilds'   => $topBuilds,
+            'versionLines' => \WindowsBuilds\Service\ReleaseClassifier::lineTags((string) $section),
             'seoJsonLd'   => $seoJsonLd,
         ]);
         $view->setPageParams([
@@ -438,16 +440,16 @@ class Builds extends AbstractController
 
         $map = [
             'windows11' => [
-                'title'       => 'Windows 11 Builds Tracker - 25H2, Insider & Release Channels',
+                'title'       => 'Windows 11 Builds Tracker - Public & Insider Releases',
                 'heading'     => 'Windows 11 Builds',
-                'description' => 'Track every Windows 11 build across the Experimental (formerly Dev), Beta, Release Preview and retail channels, including 25H2 (26200) and 24H2 (26100). Version history, download links, and AI summaries.',
+                'description' => 'Track Windows 11 public releases and Insider flights across Experimental, Beta and Release Preview. Version history, support dates, download links, and AI summaries.',
                 'keywords'    => 'Windows 11 builds, Windows 11 25H2, Windows 11 24H2, Windows 11 Experimental, Windows 11 Release Preview, Windows 11 Insider, Windows 11 Canary, Windows 11 enablement package',
                 'canonical'   => $base . '/windows11/',
             ],
             'windows10' => [
                 'title'       => 'Windows 10 Builds Tracker - 22H2 & End of Support',
                 'heading'     => 'Windows 10 Builds',
-                'description' => 'Windows 10 reached end of support on October 14, 2025 (final build 19045.6456). Track the Windows 10 22H2 servicing history and Extended Security Updates (ESU).',
+                'description' => 'Regular Windows 10 support ended October 14, 2025. Track the Windows 10 22H2 servicing history and Extended Security Updates (ESU).',
                 'keywords'    => 'Windows 10 builds, Windows 10 22H2, Windows 10 end of support, Windows 10 ESU, Windows 10 19045, Windows 10 EOL',
                 'canonical'   => $base . '/windows10/',
             ],
@@ -557,6 +559,7 @@ class Builds extends AbstractController
                 'ts'        => (int) $ts,
                 'url'       => $this->buildLinkForBuild($build),
                 'permalink' => $permalink,
+                'release_date' => $build['release_date'] ?? null,
             ];
         }
 
@@ -570,7 +573,7 @@ class Builds extends AbstractController
             $items[] = [
                 'name'          => $row['name'],
                 'version'       => $row['version'],
-                'datePublished' => $row['ts'] ? gmdate('c', $row['ts']) : '',
+                'datePublished' => $row['release_date'] ?: ($row['ts'] ? gmdate('c', $row['ts']) : ''),
                 'url'           => $row['url'],
                 'permalink'     => $row['permalink'],
             ];
@@ -584,32 +587,12 @@ class Builds extends AbstractController
      */
     public static function tagForTitle(string $section, string $title, string $build): ?string
     {
-        if (preg_match('/\b(\d{2}H\d)\b/i', $title, $m)) {
-            return strtoupper($m[1]);
-        }
-        if ($section === 'windowsserver' && preg_match('/Windows Server[, ]+(?:version )?(\d{4})/i', $title, $m)) {
-            return $m[1];
-        }
-        return self::tagForBase($section, $build);
+        return \WindowsBuilds\Service\ReleaseClassifier::versionTag($section, $title, $build);
     }
 
-    /**
-     * Version line for a build base when the UUP title carries no NNHN tag.
-     * Mirrors BASE_TAGS in fastapi_app/build_detail.py — keep in step.
-     */
     public static function tagForBase(string $section, string $build): ?string
     {
-        $base = explode('.', $build, 2)[0];
-        if ($section === 'windowsserver') {
-            $server = ['26100' => '2025', '20348' => '2022', '17763' => '2019', '14393' => '2016'];
-            return $server[$base] ?? null;
-        }
-        $client = [
-            '26300' => '26H2', '28000' => '26H1', '26200' => '25H2', '26100' => '24H2',
-            '22631' => '23H2', '22621' => '22H2', '19045' => '22H2', '19044' => '21H2',
-            '19043' => '21H1', '19042' => '20H2', '19041' => '2004',
-        ];
-        return $client[$base] ?? null;
+        return \WindowsBuilds\Service\ReleaseClassifier::versionTag($section, '', $build);
     }
 
     /**

@@ -32,6 +32,7 @@ export interface VersionRow {
   kb: string | null;
   /** Epoch millis of the newest build, or null. */
   time: number | null;
+  releaseDate?: string | null;
   historyHref: string | null;
   historyLabel: string | null;
   recommended: boolean;
@@ -60,16 +61,19 @@ export function lineRows(lines: VersionLine[]): VersionRow[] {
     .map(({ line }) => line);
   return ordered.map((line) => {
     const meta = line.status ? LINE_STATUS[line.status] : { status: 'Unknown', tone: 'slate' as Tone };
+    const latest = line.latest_public === undefined ? line.latest : line.latest_public;
+    const optional = /\s[CD]$/.test(latest?.update_type ?? '');
     return {
       key: `${line.family}:${line.tag}`,
       name: line.family === 'windowsserver' ? `Server ${line.tag}` : line.tag,
       status: meta.status,
       tone: meta.tone,
-      note: line.note,
-      number: line.latest.build,
-      href: line.latest.url || null,
-      kb: line.latest.kb,
-      time: parseBuildDate(line.latest.created),
+      note: [line.note, optional ? 'Latest public build is an optional non-security preview' : null].filter(Boolean).join('; ') || null,
+      number: latest?.build ?? (line.status === 'preview' ? 'Insider only' : 'Unavailable'),
+      href: latest?.url || null,
+      kb: latest?.kb ?? null,
+      time: parseBuildDate(latest?.release_date ?? latest?.created),
+      releaseDate: latest?.release_date,
       historyHref: line.url || null,
       historyLabel: line.count ? `All ${line.count} builds` : 'All builds',
       recommended: line.status === 'mainstream',
@@ -125,7 +129,7 @@ function officeChannelMeta(channel: string): { status: string; tone: Tone; order
   if (c.includes('preview')) return { status: 'Early access', tone: 'amber', order: 4 };
   if (c.startsWith('current')) return { status: 'Home & most users', tone: 'emerald', order: 1 };
   if (c.includes('monthly')) return { status: 'Businesses, monthly', tone: 'sky', order: 2 };
-  if (c.includes('semi-annual')) return { status: 'Businesses, twice a year', tone: 'teal', order: 3 };
+  if (c.includes('semi-annual')) return { status: 'Businesses, monthly (legacy name)', tone: 'teal', order: 3 };
   return { status: 'Channel', tone: 'slate', order: 6 };
 }
 

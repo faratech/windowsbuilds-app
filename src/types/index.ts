@@ -5,6 +5,9 @@ export interface WindowsBuild {
   arch: string;
   build: string;
   build_number?: string;
+  version_tag?: string | null;
+  release_date?: string | null;
+  update_type?: string | null;
   build_type?: ReleaseChannel;
   /** Insider sub-channel label, e.g. "26H1" or "Future Platforms". */
   branch?: string | null;
@@ -139,6 +142,12 @@ export interface VersionLine {
   note: string | null;
   url: string;
   count: number;
+  latest_public?: VersionLine['latest'] | null;
+  availability_date?: string;
+  support?: Record<string, string | null>;
+  source_url?: string | null;
+  verified_at?: number | null;
+  stale?: boolean;
   latest: {
     build: string;
     title: string;
@@ -148,7 +157,9 @@ export interface VersionLine {
     channel_label: string;
     kind: BuildKind | null;
     kb: string | null;
-    uuid: string;
+    uuid: string | null;
+    release_date?: string | null;
+    update_type?: string | null;
     url: string;
   };
 }

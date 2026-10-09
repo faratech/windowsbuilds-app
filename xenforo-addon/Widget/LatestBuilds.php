@@ -191,6 +191,10 @@ class LatestBuilds
             $build['branch'] = $cls['branch_sublabel'];
             $build['kind'] = $cls['kind'];
             $build['status'] = $cls['status'];
+            $family = stripos($rawTitle, 'windows server') !== false ? 'windowsserver' : (stripos($rawTitle, 'windows 11') !== false ? 'windows11' : 'windows10');
+            $build['version_tag'] = ReleaseClassifier::versionTag($family, $rawTitle, $build['build'] ?? $bNumber);
+            $public = $cls['kind'] === 'dotnet' ? null : ReleaseClassifier::publicBuild($family, $build['build'] ?? $bNumber);
+            $build['release_date'] = $public['release_date'] ?? null;
             $created = $build['created'];
             $build['created_timestamp'] = $created;
             $build['created'] = gmdate('F j, Y', $created);

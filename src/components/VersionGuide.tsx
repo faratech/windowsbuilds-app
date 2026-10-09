@@ -26,7 +26,7 @@ interface VersionGuideProps {
 const GRID = '@2xl:grid @2xl:grid-cols-[5.5rem_minmax(0,1.3fr)_minmax(8.5rem,1fr)_6rem_6.5rem_minmax(5.5rem,auto)] @2xl:gap-x-4';
 
 function Row({ row, active, onOpen }: { row: VersionRow; active: boolean; onOpen: (b: BuildRecord) => void }) {
-  const date = row.time ? formatBuildDate(row.time / 1000, SHORT_DATE, '') : '';
+  const date = formatBuildDate(row.releaseDate ?? (row.time ? row.time / 1000 : null), SHORT_DATE, '');
   const numberClass = 'font-mono text-[15px] font-semibold text-blue-700 dark:text-blue-300 hover:underline';
   return (
     <li
@@ -88,6 +88,7 @@ export const VersionGuide: React.FC<VersionGuideProps> = ({ tab, builds, activeT
     queryKey: ['lines', tab],
     queryFn: ({ signal }) => apiService.fetchLines(tab, signal),
     staleTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
     enabled: windows,
   });
 
@@ -97,6 +98,7 @@ export const VersionGuide: React.FC<VersionGuideProps> = ({ tab, builds, activeT
     return officeRows(builds);
   }, [windows, tab, lines.data, builds]);
 
+  const source = lines.data?.find((line) => line.source_url && line.verified_at);
   const pending = windows ? lines.isPending : loading;
   if (rows.length === 0 && !pending) return null;
 
@@ -159,6 +161,13 @@ export const VersionGuide: React.FC<VersionGuideProps> = ({ tab, builds, activeT
             {ended.map((row) => <Row key={row.key} row={row} active={isActive(row)} onOpen={onOpen} />)}
           </ul>
         </details>
+      )}
+      {windows && source && (
+        <p className="px-4 sm:px-5 py-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-400">
+          <a href={source.source_url!} target="_blank" rel="noopener noreferrer" className="text-blue-700 dark:text-blue-300 hover:underline">Microsoft release information</a>
+          {' · Verified '}{formatBuildDate(source.verified_at, SHORT_DATE)}
+          {source.stale ? ' · Refresh delayed; showing the last verified release information.' : ' · Checked every two hours.'}
+        </p>
       )}
     </section>
   );

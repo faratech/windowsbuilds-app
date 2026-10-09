@@ -33,7 +33,7 @@ export function buildKey(build: BuildRecord, index: number): string {
 
 export function buildSearchText(build: BuildRecord): string {
   if (isWindowsBuild(build)) {
-    return [build.title, build.build_number, build.build, build.arch, build.build_type]
+    return [build.title, build.build_number, build.build, build.arch, build.build_type, build.version_tag, build.branch]
       .filter(Boolean).join(' ');
   }
   if (isEdgeBuild(build)) {
@@ -52,14 +52,14 @@ export function comparableVersion(build: BuildRecord): string {
 
 /** Raw date field for a record, in whatever shape its endpoint emits. */
 export function buildDateValue(build: BuildRecord): string | number | undefined {
-  if (isWindowsBuild(build)) return build.created_timestamp ?? build.created;
+  if (isWindowsBuild(build)) return build.release_date ?? build.created_timestamp ?? build.created;
   if (isEdgeBuild(build)) return build.PublishedTime;
   return build.created_timestamp ?? build.releaseDate ?? build.release_date;
 }
 
 /** Epoch millis, UTC-correct. See `utils/dates`. */
 export function buildTime(build: BuildRecord): number {
-  return buildTimestamp(buildDateValue(build));
+  return buildTimestamp(isWindowsBuild(build) ? (build.created_timestamp ?? build.created) : buildDateValue(build));
 }
 
 /** Numeric-segment-aware compare, so `26200.1` sorts above `26100.9999`. */

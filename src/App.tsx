@@ -163,13 +163,13 @@ function AppContent() {
   const updatePageMetadata = useCallback((tab: TabType) => {
     const metaData = {
       windows11: {
-        title: 'Windows 11 Builds Tracker - 26H2, 25H2, Insider & Release Channels',
-        description: 'Track every Windows 11 build across the Experimental (formerly Dev), Beta, Release Preview and retail channels, including 26H2 (26300), 25H2 (26200) and 24H2 (26100). Version history, download links, and AI summaries.',
+        title: 'Windows 11 Builds Tracker - Public & Insider Releases',
+        description: 'Track Windows 11 public releases and Insider flights across Experimental, Beta and Release Preview. Version history, support dates, download links, and AI summaries.',
         keywords: 'Windows 11 builds, Windows 11 26H2, Windows 11 25H2, Windows 11 24H2, Windows 11 Experimental, Windows 11 Release Preview, Windows 11 Insider, Windows 11 Canary, Windows 11 enablement package',
       },
       windows10: {
         title: 'Windows 10 Builds Tracker - 22H2 & End of Support',
-        description: 'Windows 10 reached end of support on October 14, 2025 (final build 19045.6456). Track the Windows 10 22H2 servicing history and Extended Security Updates (ESU).',
+        description: 'Regular Windows 10 support ended October 14, 2025. Track the Windows 10 22H2 servicing history and Extended Security Updates (ESU).',
         keywords: 'Windows 10 builds, Windows 10 22H2, Windows 10 end of support, Windows 10 ESU, Windows 10 19045, Windows 10 EOL',
       },
       windowsServer: {
@@ -450,7 +450,7 @@ function AppContent() {
   const architectures = ['amd64', 'arm64', 'x86'];
   const platforms = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'];
   const downloadFilters = ['All', 'Download Available', 'No Downloads'];
-  const currentYear = new Date().getFullYear();
+  const [currentYear] = useState(() => new Date().getFullYear());
   const years = [ALL_DATES, ...Array.from({ length: 5 }, (_, i) => (currentYear - i).toString())];
 
   const sortOptions = isEdgeTab

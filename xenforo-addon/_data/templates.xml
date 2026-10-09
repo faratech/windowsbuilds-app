@@ -166,15 +166,8 @@
         <h2><xf:if is="$tag">{$meta.heading}<xf:else />Latest {$meta.heading}</xf:if></h2>
 
         <xf:if is="in_array($section, ['windows11', 'windows10', 'windowsserver'])">
-            <xf:if is="$section == 'windows11'">
-                <xf:set var="$wbLines" value="{{ ['26H2', '26H1', '25H2', '24H2', '23H2', '22H2'] }}" />
-            <xf:elseif is="$section == 'windows10'" />
-                <xf:set var="$wbLines" value="{{ ['22H2', '21H2', '21H1'] }}" />
-            <xf:else />
-                <xf:set var="$wbLines" value="{{ ['2025', '2022', '2019'] }}" />
-            </xf:if>
             <p class="wb-ssr-lines">Version lines:
-                <xf:foreach loop="$wbLines" value="$line" i="$i"><xf:if is="$i > 1"> &middot; </xf:if><a href="/builds/{$section}/{$line|to_lower}/"<xf:if is="$tag == $line"> aria-current="page"</xf:if>>{$line}</a></xf:foreach>
+                <xf:foreach loop="$versionLines" value="$line" i="$i"><xf:if is="$i > 1"> &middot; </xf:if><a href="/builds/{$section}/{$line|to_lower}/"<xf:if is="$tag == $line"> aria-current="page"</xf:if>>{$line}</a></xf:foreach>
             </p>
         </xf:if>
 
@@ -239,8 +232,8 @@
 <xf:head option="wbSeoJsonLd"><script type="application/ld+json">{$seoJsonLd|raw}</script></xf:head>
 <xf:css src="windowsbuilds_build.less" />
 
-<xf:set var="$tone" value="{{ $b.line.status == 'preview' ? 'preview' : ($b.build_type == 'release' ? 'release' : ($b.build_type == 'release-preview' ? 'preview' : ($b.build_type == 'beta' ? 'beta' : 'experimental'))) }}" />
-<xf:set var="$channelText" value="{{ ($b.line.status == 'preview' AND $b.build_type == 'release') ? 'Preview flight' : $meta.channel }}" />
+<xf:set var="$tone" value="{{ ($b.build_type == 'release' ? 'release' : ($b.build_type == 'release-preview' ? 'preview' : ($b.build_type == 'beta' ? 'beta' : 'experimental'))) }}" />
+<xf:set var="$channelText" value="{{ $meta.channel }}" />
 
 <div class="wbb wbb--{$tone} {{ $b.is_dotnet ? 'wbb--dotnet' : '' }}" data-wb-build="{$b.build}" data-wb-family="{$b.family}">
 
@@ -277,12 +270,15 @@
                 <xf:if is="$b.kind_label"><li class="wbb-pill">{$b.kind_label}</li></xf:if>
                 <xf:if is="$b.branch"><li class="wbb-pill">{$b.branch}</li></xf:if>
                 <xf:if is="$b.kb"><li class="wbb-pill wbb-pill--kb"><xf:if is="$b.kb_url"><a href="{$b.kb_url}" target="_blank" rel="noopener nofollow">{$b.kb}<span class="u-srOnly"> — Microsoft's article, opens in a new tab</span></a><xf:else />{$b.kb}</xf:if></li></xf:if>
-                <xf:if is="$b.release_date"><li class="wbb-pill"><xf:fa icon="fa-calendar" /> <time datetime="{$b.release_date}">{{ date(date_from_format('Y-m-d', $b.release_date), 'M j, Y') }}</time></li>
+                <xf:if is="$b.release_date"><li class="wbb-pill"><xf:fa icon="fa-calendar" /> <time datetime="{$b.release_date}">{$meta.released}</time></li>
                 <xf:elseif is="$b.created" /><li class="wbb-pill"><xf:fa icon="fa-calendar" /> <time datetime="{$b.created_iso}">{{ date($b.created, 'M j, Y') }}</time></li></xf:if>
                 <xf:foreach loop="$b.records" value="$rec"><li class="wbb-pill wbb-pill--mono">{$rec.arch}</li></xf:foreach>
             </ul>
             <xf:if is="$b.line.note">
                 <p class="wbb-lineNote wbb-lineNote--{$b.line.status}"><xf:fa icon="fa-info-circle" /> <strong>{$b.family_label} {$b.tag}:</strong> {$b.line.note}</p>
+            </xf:if>
+            <xf:if is="$b.line.source_url AND $b.line.verified_at">
+                <p class="wbb-muted"><a href="{$b.line.source_url}" target="_blank" rel="noopener noreferrer">Microsoft release information</a> &middot; Verified {{ date($b.line.verified_at, 'M j, Y') }}<xf:if is="$b.line.stale"> &middot; Refresh delayed; showing the last verified release information.</xf:if></p>
             </xf:if>
             <xf:if is="$b.is_dotnet">
                 <p class="wbb-lineNote wbb-lineNote--dotnet"><xf:fa icon="fa-cube" /> This is a .NET Framework package for {$b.family_label} {$b.tag}, not an operating-system build. Its history below lists other .NET packages on the {$b.base} base.</p>

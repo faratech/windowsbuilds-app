@@ -1,7 +1,7 @@
 // Persistent build URLs. The XenForo route is `/builds/<family>/<ref>/` where
 // <ref> is a build number (26100.9278) or a version line (24h2; server lines
-// are years). Mirrors BASE_TAGS in fastapi_app/build_detail.py and
-// Builds::tagForBase() in the PHP add-on — keep the three in step.
+// are years). Live records carry the catalog-derived version_tag. The maps
+// below are fallbacks for older API responses.
 
 import { isWindowsBuild, type BuildRecord } from './typeGuards';
 
@@ -36,7 +36,6 @@ const SERVER_BASE_TAGS: Record<string, string> = {
 
 const BUILD_RE = /^\d{4,5}\.\d{1,6}$/;
 const TAG_RE = /\b(\d{2}H\d)\b/i;
-const SERVER_YEAR_RE = /Windows Server[, ]+(?:version )?(\d{4})/i;
 
 export function windowsFamily(title: string | undefined): WindowsFamily | null {
   const t = (title || '').toLowerCase();
@@ -51,16 +50,14 @@ export function familyLabel(family: WindowsFamily): string {
 }
 
 /** Version line for a build: 24H2 / 25H2 / 26H1, or a year for Server. */
-export function versionTag(title: string | undefined, build: string | undefined, family: WindowsFamily): string | null {
+export function versionTag(title: string | undefined, build: string | undefined, family: WindowsFamily, normalized?: string | null): string | null {
+  if (normalized !== undefined) return normalized;
   const m = TAG_RE.exec(title || '');
-  if (m) return m[1].toUpperCase();
   const base = (build || '').split('.')[0];
   if (family === 'windowsserver') {
-    const y = SERVER_YEAR_RE.exec(title || '');
-    if (y) return y[1];
     return SERVER_BASE_TAGS[base] ?? null;
   }
-  return CLIENT_BASE_TAGS[base] ?? null;
+  return CLIENT_BASE_TAGS[base] ?? (m ? m[1].toUpperCase() : null);
 }
 
 export function buildNumberOf(build: BuildRecord): string {
@@ -109,7 +106,7 @@ export function latestPerLine(builds: BuildRecord[], timeOf: (b: BuildRecord) =>
     const family = windowsFamily(build.title);
     const number = buildNumberOf(build);
     if (!family || !BUILD_RE.test(number)) continue;
-    const tag = versionTag(build.title, number, family);
+    const tag = versionTag(build.title, number, family, build.version_tag);
     if (!tag) continue;
     const key = `${family}:${tag}`;
     const current = best.get(key);
