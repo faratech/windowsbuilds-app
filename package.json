@@ -16,7 +16,10 @@
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck && npm run test",
     "preview": "vite preview",
-    "deploy:addon": "./deploy-addon.sh"
+    "deploy": "./deploy.sh",
+    "deploy:addon": "./deploy-addon.sh",
+    "update:controller": "./update-controller.sh",
+    "build:full": "npm run build && npm run deploy && npm run deploy:addon && npm run update:controller"
   },
   "dependencies": {
     "@fluentui/react-icons": "^2.0.344",
@@ -31,7 +34,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.7",
+    "@testing-library/user-event": "^14.6.8",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
