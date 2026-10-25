@@ -58,30 +58,42 @@ async function fetchJson<T>(
   const query = params.toString();
   const { signal, done } = withTimeout(init.signal ?? undefined, REQUEST_TIMEOUT_MS);
 
-  let response: Response;
+  // The timeout/cancellation signal must cover body consumption too, not
+  // just the headers: only release it once the body has been read.
   try {
-    response = await fetch(`${API_BASE}${path}${query ? `?${query}` : ''}`, { ...init, signal });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new ApiError(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}${path}${query ? `?${query}` : ''}`, { ...init, signal });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        throw new ApiError(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+      }
+      throw error;
     }
-    throw error;
+
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const body = await response.json();
+        detail = body.detail || body.message || body.error || detail;
+      } catch {
+        // Non-JSON error body; the status text is the best we have.
+      }
+      throw new ApiError(`${response.status} ${detail}`.trim(), response.status);
+    }
+
+    try {
+      return await response.json() as T;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        throw new ApiError(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+      }
+      if (error instanceof DOMException && error.name === 'AbortError') throw error;
+      throw new ApiError(`Malformed response from ${path}: invalid JSON`);
+    }
   } finally {
     done();
   }
-
-  if (!response.ok) {
-    let detail = response.statusText;
-    try {
-      const body = await response.json();
-      detail = body.detail || body.message || body.error || detail;
-    } catch {
-      // Non-JSON error body; the status text is the best we have.
-    }
-    throw new ApiError(`${response.status} ${detail}`.trim(), response.status);
-  }
-
-  return response.json() as Promise<T>;
 }
 
 /**
@@ -104,6 +116,10 @@ function unwrapBuildList<T>(payload: unknown, endpoint: string): T[] {
 
   if (!Array.isArray(body.builds)) {
     throw new ApiError(`Malformed response from ${endpoint}: missing "builds" array`);
+  }
+
+  if (body.builds.some((b) => typeof b !== 'object' || b === null)) {
+    throw new ApiError(`Malformed response from ${endpoint}: non-object build entry`);
   }
 
   return body.builds;
@@ -147,8 +163,18 @@ export const apiService = {
   async fetchLines(tab: TabType, signal?: AbortSignal): Promise<VersionLine[]> {
     const family = LINE_FAMILY[tab];
     if (!family) return [];
-    const payload = await fetchJson<{ lines?: unknown }>(`/lines/${family}`, new URLSearchParams(), { signal });
-    return Array.isArray(payload.lines) ? (payload.lines as VersionLine[]) : [];
+    const payload = await fetchJson<{ lines?: unknown; error?: unknown }>(`/lines/${family}`, new URLSearchParams(), { signal });
+    if (typeof payload !== 'object' || payload === null) {
+      throw new ApiError(`Malformed response from /lines/${family}`);
+    }
+    if (typeof payload.error === 'string' && payload.error) throw new ApiError(payload.error);
+    if (!Array.isArray(payload.lines)) {
+      throw new ApiError(`Malformed response from /lines/${family}: missing "lines" array`);
+    }
+    if (payload.lines.some((l) => typeof l !== 'object' || l === null)) {
+      throw new ApiError(`Malformed response from /lines/${family}: non-object line entry`);
+    }
+    return payload.lines as VersionLine[];
   },
 
   async fetchWindowsBuilds(query: WindowsQuery, signal?: AbortSignal): Promise<WindowsBuild[]> {

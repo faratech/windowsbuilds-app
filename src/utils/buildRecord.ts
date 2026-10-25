@@ -4,7 +4,7 @@
 // changed underneath it. Deriving from the record itself makes that impossible.
 
 import { isEdgeBuild, isWindowsBuild, type BuildRecord } from './typeGuards';
-import { buildTimestamp } from './dates';
+import { buildTimestamp, parseBuildDate } from './dates';
 
 /**
  * Product a record belongs to. These exact strings are also the `build_type`
@@ -52,9 +52,14 @@ export function comparableVersion(build: BuildRecord): string {
 
 /** Raw date field for a record, in whatever shape its endpoint emits. */
 export function buildDateValue(build: BuildRecord): string | number | undefined {
-  if (isWindowsBuild(build)) return build.release_date ?? build.created_timestamp ?? build.created;
+  // Empty strings and 0 are absent values, not dates: fall through to the
+  // next field that actually parses instead of masking it with `??`.
+  const firstValid = (...values: Array<string | number | null | undefined>): string | number | undefined =>
+    values.find((v): v is string | number => v !== undefined && v !== null && v !== '' && v !== 0 && parseBuildDate(v) !== null) ??
+    values.find((v): v is string | number => v !== undefined && v !== null && v !== '' && v !== 0);
+  if (isWindowsBuild(build)) return firstValid(build.release_date, build.created_timestamp, build.created);
   if (isEdgeBuild(build)) return build.PublishedTime;
-  return build.created_timestamp ?? build.releaseDate ?? build.release_date;
+  return firstValid(build.created_timestamp, build.releaseDate, build.release_date);
 }
 
 /** Epoch millis, UTC-correct. See `utils/dates`. */

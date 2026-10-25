@@ -55,6 +55,22 @@ describe('public version guidance', () => {
   });
 });
 
+describe('unknown line status and empty dates', () => {
+  it('degrades an unknown backend status to Unknown instead of throwing', () => {
+    const [row] = lineRows([{ ...line, status: 'brand-new' as never }]);
+    expect(row.status).toBe('Unknown');
+  });
+
+  it('falls through an empty release_date to the valid created date', () => {
+    const b: WindowsBuild = {
+      uuid: 'x', title: 'Windows 11, version 26H2 (26300.9550)', build: '26300.9550',
+      arch: 'amd64', build_type: 'release', created: '2026-09-22T12:00:00Z', release_date: '',
+    };
+    expect(buildDateValue(b)).toBe(b.created);
+    expect(groupReleases([b])[0].day).toBe('2026-09-22');
+  });
+});
+
 describe('release metadata', () => {
   const build: WindowsBuild = {
     uuid: 'public', title: 'Windows 11, version 26H2 (26300.9550)',

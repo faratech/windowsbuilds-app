@@ -57,10 +57,10 @@ export function lineRows(lines: VersionLine[]): VersionRow[] {
   const ordered = lines
     .map((line, index) => ({ line, index }))
     .sort((a, b) =>
-      (a.line.status ? LINE_ORDER[a.line.status] : 9) - (b.line.status ? LINE_ORDER[b.line.status] : 9) || a.index - b.index)
+      (a.line.status ? (LINE_ORDER[a.line.status] ?? 9) : 9) - (b.line.status ? (LINE_ORDER[b.line.status] ?? 9) : 9) || a.index - b.index)
     .map(({ line }) => line);
   return ordered.map((line) => {
-    const meta = line.status ? LINE_STATUS[line.status] : { status: 'Unknown', tone: 'slate' as Tone };
+    const meta = line.status ? (LINE_STATUS[line.status] ?? { status: 'Unknown', tone: 'slate' as Tone }) : { status: 'Unknown', tone: 'slate' as Tone };
     const latest = line.latest_public === undefined ? line.latest : line.latest_public;
     const optional = /\s[CD]$/.test(latest?.update_type ?? '');
     return {

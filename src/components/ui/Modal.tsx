@@ -94,10 +94,13 @@ export const Modal: React.FC<ModalProps> = ({
     const last = focusable[focusable.length - 1];
     const active = document.activeElement;
 
-    if (event.shiftKey && active === first) {
+    // Focus starts on the dialog container itself (tabIndex -1), which is
+    // neither first nor last: treat it (and any outside focus) as a boundary.
+    const insideList = active instanceof HTMLElement && Array.from(focusable).includes(active);
+    if (event.shiftKey && (active === first || !insideList)) {
       event.preventDefault();
       last.focus();
-    } else if (!event.shiftKey && active === last) {
+    } else if (!event.shiftKey && (active === last || !insideList)) {
       event.preventDefault();
       first.focus();
     }

@@ -52,6 +52,15 @@ export const BuildListItem: React.FC<BuildListItemProps> = ({ build, onClick }) 
         'transition-colors duration-200 cursor-pointer',
       )}
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `View details for ${title}` : undefined}
+      onKeyDown={onClick ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      } : undefined}
     >
       <div className="min-w-0 md:flex-shrink-0 md:w-48 lg:w-56 xl:w-64">
         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">

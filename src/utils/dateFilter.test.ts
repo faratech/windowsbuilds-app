@@ -71,6 +71,10 @@ describe('matchesDateFilter', () => {
     expect(matchesDateFilter('2025-01-15T00:00:00Z', filter, NOW)).toBe(false);
   });
 
+  it('excludes far-future builds from a rolling window', () => {
+    expect(matchesDateFilter('2099-01-01T00:00:00Z', rolling60, NOW)).toBe(false);
+  });
+
   it('keeps builds whose date cannot be parsed rather than silently hiding them', () => {
     expect(matchesDateFilter(undefined, rolling60, NOW)).toBe(true);
     expect(matchesDateFilter('garbage', rolling60, NOW)).toBe(true);

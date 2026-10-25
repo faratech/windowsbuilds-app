@@ -161,7 +161,7 @@ class ThreadUpdateCard
 				ON (p.post_id = r.post_id AND p.thread_id = r.thread_id AND p.message_state = 'visible')
 			 INNER JOIN xf_thread AS t ON t.thread_id = r.thread_id
 			 LEFT JOIN wf_build_kb AS k ON (k.family = r.family AND k.build = r.build)
-			 LEFT JOIN wf_kb_link_state AS s ON s.kb = r.value
+			 LEFT JOIN wf_kb_link_state AS s ON s.kb = k.kb
 			 WHERE r.thread_id = ? AND r.tier = 'exact'
 			   AND r.kind IN ('kb', 'build')
 			   -- A KB with no build row still identifies a real update: Microsoft's

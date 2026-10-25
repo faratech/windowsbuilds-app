@@ -7,7 +7,7 @@
 // hand-edited or stale link degrades to defaults instead of poisoning state.
 
 import type { SortBy } from '../types';
-import { ALL_DATES, MONTH_OPTIONS, ROLLING_60 } from './dateFilter';
+import { ALL_DATES, MONTH_OPTIONS, ROLLING_60, isRollingMonth } from './dateFilter';
 
 export const ARCHITECTURES = ['amd64', 'arm64', 'x86'] as const;
 export const PLATFORMS = ['Windows', 'MacOS', 'Linux', 'Android', 'iOS'] as const;
@@ -116,11 +116,10 @@ export function serializeUrlFilters(filters: UrlFilters): string {
 
   if (filters.arch !== d.arch) params.set('arch', filters.arch);
   // A rolling window ignores the year outright — never serialize that pair.
-  if (filters.month !== d.month) {
-    params.set('month', filters.month);
-  } else if (filters.year !== d.year) {
-    params.set('year', filters.year);
-  }
+  // In calendar mode month and year are independent and both must round-trip.
+  if (filters.month !== d.month) params.set('month', filters.month);
+  const explicitRolling = filters.month !== d.month && isRollingMonth(filters.month);
+  if (!explicitRolling && filters.year !== d.year) params.set('year', filters.year);
   if (filters.insider) params.set('insider', '1');
   if (filters.sortBy !== d.sortBy) params.set('sort', filters.sortBy);
   if (filters.buildType) params.set('type', filters.buildType);

@@ -14,7 +14,7 @@ class EdgeUpdates
     
     public function __construct()
     {
-        $this->client = new Client();
+        $this->client = new Client(['timeout' => 15, 'connect_timeout' => 5]);
     }
     
     public function getLatestBuilds($view = 'both')

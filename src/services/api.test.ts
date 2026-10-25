@@ -55,6 +55,31 @@ describe('build list responses', () => {
   });
 });
 
+describe('malformed payloads and lines', () => {
+  beforeEach(() => vi.stubGlobal('fetch', vi.fn()));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('throws ApiError on a null build entry', async () => {
+    vi.mocked(fetch).mockResolvedValue(okJson({ builds: [null] }));
+    await expect(apiService.fetchWindowsBuilds(windowsQuery)).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('throws ApiError on a non-JSON 200 body', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response('not json', { status: 200 }));
+    await expect(apiService.fetchWindowsBuilds(windowsQuery)).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('throws on the lines 200-with-error shape instead of returning []', async () => {
+    vi.mocked(fetch).mockResolvedValue(okJson({ builds: [], error: 'Failed to fetch data' }));
+    await expect(apiService.fetchLines('windows11')).rejects.toThrow('Failed to fetch data');
+  });
+
+  it('throws ApiError when lines payload is null', async () => {
+    vi.mocked(fetch).mockResolvedValue(okJson(null));
+    await expect(apiService.fetchLines('windows11')).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
 describe('windows query parameters', () => {
   beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ builds: [] }))));
   afterEach(() => vi.unstubAllGlobals());
@@ -95,6 +120,24 @@ describe('cancellation and timeouts', () => {
     controller.abort();
 
     await expect(pending).rejects.toBeDefined();
+  });
+
+  it('times out when the body stalls after headers arrive', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+        }),
+      } as Response)));
+
+    const pending = apiService.fetchWindowsBuilds(windowsQuery);
+    const assertion = expect(pending).rejects.toThrow(/timed out/i);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await assertion;
+    vi.useRealTimers();
   });
 
   it('aborts a hung request instead of waiting forever', async () => {

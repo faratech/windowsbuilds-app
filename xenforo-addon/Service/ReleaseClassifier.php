@@ -77,7 +77,25 @@ class ReleaseClassifier
     {
         $path = getenv('BUILD_LINES_FILE') ?: '/web/fastapi_app/data/build_lines.json';
         $baseline = json_decode(@file_get_contents($path) ?: '{}', true) ?: [];
-        $tags = array_keys(array_merge($baseline[$family] ?? [], self::catalog()['sources'][$family]['lines'] ?? []));
+        // Sources disagree on shape: client families key lines by tag in both
+        // files, while the server baseline is a plain list of tags. Collect
+        // string keys and string values alike; array_keys() alone turned the
+        // server list into [7,6,5,...] and hid every real server tag.
+        $tags = [];
+        foreach ([$baseline[$family] ?? [], self::catalog()['sources'][$family]['lines'] ?? []] as $source) {
+            foreach ((array) $source as $key => $value) {
+                if (is_string($key) && $key !== '') {
+                    $tags[] = $key;
+                } elseif (is_int($key) && is_array($value)) {
+                    // Year lines (2025, 2022) arrive as integer array keys.
+                    $tags[] = (string) $key;
+                } elseif (is_string($value) && $value !== '') {
+                    $tags[] = $value;
+                } elseif (is_int($value)) {
+                    $tags[] = (string) $value;
+                }
+            }
+        }
         if ($family === 'windows11') {
             foreach (self::catalog()['sources']['flights']['flights'] ?? [] as $flights) {
                 foreach ($flights as $flight) {

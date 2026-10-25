@@ -86,6 +86,8 @@ class ExtractCab
     private $data;
     private $offset;
     private $size;
+    private $cbCFFolder = 0;
+    private $filesOffset = 0;
     
     public function __construct($cabData = null)
     {
@@ -128,13 +130,14 @@ class ExtractCab
         for ($i = 0; $i < $header['numFolders']; $i++) {
             $folders[] = $this->readFolderEntry();
         }
-        
+        $this->seekToFileEntries();
+
         // Read file entries
         $files = [];
         for ($i = 0; $i < $header['numFiles']; $i++) {
             $files[] = $this->readFileEntry();
         }
-        
+
         // Create output directory
         if (!is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
@@ -198,7 +201,8 @@ class ExtractCab
         for ($i = 0; $i < $header['numFolders']; $i++) {
             $this->readFolderEntry();
         }
-        
+        $this->seekToFileEntries();
+
         // Read file entries
         $files = [];
         for ($i = 0; $i < $header['numFiles']; $i++) {
@@ -286,11 +290,14 @@ class ExtractCab
             'iCabinet' => $this->readUInt16()
         ];
         
+        $this->filesOffset = $header['filesOffset'];
+        $this->cbCFFolder = 0;
         // Handle optional fields based on flags
         if ($header['flags'] & self::FLAG_RESERVE_PRESENT) {
             $header['cbCFHeader'] = $this->readUInt16();
             $header['cbCFFolder'] = $this->readUInt8();
             $header['cbCFData'] = $this->readUInt8();
+            $this->cbCFFolder = $header['cbCFFolder'];
             
             // Skip reserved data
             if ($header['cbCFHeader'] > 0) {
@@ -316,11 +323,23 @@ class ExtractCab
      */
     private function readFolderEntry()
     {
-        return [
+        $folder = [
             'coffCabStart' => $this->readUInt32(),
             'cCFData' => $this->readUInt16(),
             'typeCompress' => $this->readUInt16()
         ];
+        if ($this->cbCFFolder > 0) {
+            $this->offset += $this->cbCFFolder;
+        }
+        return $folder;
+    }
+
+    /** File entries start at the header's filesOffset, not after the folders. */
+    private function seekToFileEntries()
+    {
+        if ($this->filesOffset > 0) {
+            $this->offset = $this->filesOffset;
+        }
     }
     
     /**
@@ -476,32 +495,53 @@ class ExtractCab
      */
     private function extractMSZipFile($file, $folder = null)
     {
-        // Try to find deflate compressed data and decompress it
-        $compressedData = $this->findCompressedData($file, $folder);
-        
-        if ($compressedData && function_exists('gzinflate')) {
-            // Try different inflation methods
-            $methods = [
-                function($data) { return @gzinflate($data); },
-                function($data) { return @gzuncompress($data); },
-                function($data) { return @gzdecode($data); },
-                // Try with different headers
-                function($data) { return @gzinflate(substr($data, 2)); },
-                function($data) { return @gzinflate(substr($data, 10)); }
-            ];
-            
-            foreach ($methods as $method) {
-                $result = $method($compressedData);
-                if ($result !== false) {
-                    // Validate result for XML
-                    if (strpos($result, '<?xml') !== false || strpos($result, '<ReleaseHistory') !== false) {
-                        return $result;
-                    }
-                }
-            }
+        if (!$folder || !function_exists('gzinflate')) {
+            return false;
         }
-        
-        return false;
+        // MSZIP is a chain of independently deflated CFDATA blocks. Read every
+        // block up to uncompressedSize, honouring folderOffset (earlier files
+        // in the same folder own the leading blocks), instead of only block 0.
+        $currentOffset = $this->offset;
+        $this->offset = $folder['coffCabStart'];
+        $target = (int) ($file['folderOffset'] ?? 0);
+        $remaining = (int) $file['uncompressedSize'];
+        $consumed = 0;
+        $extractedData = '';
+        while ($remaining > 0) {
+            if ($this->offset + 8 > $this->size) {
+                break;
+            }
+            $this->readUInt32();
+            $compressedSize = $this->readUInt16();
+            $this->readUInt16();
+            if ($compressedSize < 0 || $this->offset + $compressedSize > $this->size) {
+                break;
+            }
+            $blockData = $this->readBytes($compressedSize);
+            if (substr($blockData, 0, 2) === 'CK') {
+                $blockData = substr($blockData, 2);
+            }
+            $block = @gzinflate($blockData);
+            if ($block === false) {
+                $block = @gzuncompress($blockData);
+            }
+            if ($block === false) {
+                $this->offset = $currentOffset;
+                return false;
+            }
+            $blockLen = strlen($block);
+            $blockStart = $consumed;
+            $consumed += $blockLen;
+            if ($blockStart + $blockLen <= $target) {
+                continue;
+            }
+            $from = max(0, $target - $blockStart);
+            $take = min($blockLen - $from, $remaining);
+            $extractedData .= substr($block, $from, $take);
+            $remaining -= $take;
+        }
+        $this->offset = $currentOffset;
+        return $remaining === 0 || $extractedData !== '' ? $extractedData : false;
     }
     
     /**

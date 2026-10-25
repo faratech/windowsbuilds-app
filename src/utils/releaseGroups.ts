@@ -395,5 +395,5 @@ export const UPDATE_KINDS = (Object.keys(UPDATE_KIND_META) as UpdateKind[])
   .sort((a, b) => UPDATE_KIND_META[a].order - UPDATE_KIND_META[b].order);
 
 export function isUpdateKind(value: string | undefined | null): value is UpdateKind {
-  return !!value && value in UPDATE_KIND_META;
+  return !!value && Object.hasOwn(UPDATE_KIND_META, value);
 }

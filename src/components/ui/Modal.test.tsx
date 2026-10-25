@@ -90,6 +90,15 @@ describe('Modal accessibility', () => {
     expect(last).toHaveFocus();
   });
 
+  it('wraps Shift+Tab from the initially focused dialog container to the last action', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const dialog = await openModal(user);
+    await waitFor(() => expect(dialog).toHaveFocus());
+    await user.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Last action' })).toHaveFocus();
+  });
+
   it('closes on Escape and on a backdrop click', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

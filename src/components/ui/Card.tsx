@@ -16,8 +16,13 @@ export const Card: React.FC<CardProps> = ({
   hover = false,
   pulse = false,
   glow = false,
+  onClick,
+  onKeyDown,
+  role,
+  tabIndex,
   ...props
 }) => {
+  const clickable = typeof onClick === 'function';
   const variants = {
     default: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 card-shadow',
     glass: 'glass',
@@ -50,6 +55,16 @@ export const Card: React.FC<CardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       whileHover={hover ? { y: -2 } : undefined}
       transition={{ duration: 0.25 }}
+      onClick={onClick}
+      role={role ?? (clickable ? 'button' : undefined)}
+      tabIndex={tabIndex ?? (clickable ? 0 : undefined)}
+      onKeyDown={(e) => {
+        onKeyDown?.(e as never);
+        if (clickable && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          (onClick as unknown as () => void)();
+        }
+      }}
       {...props}
     >
       {children}

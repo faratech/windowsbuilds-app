@@ -68,7 +68,7 @@ export function matchesDateFilter(
   if (epochMs === null) return true;
 
   if (filter.mode === 'rolling') {
-    return now - epochMs <= filter.days * 24 * 60 * 60 * 1000;
+    return epochMs <= now && now - epochMs <= filter.days * 24 * 60 * 60 * 1000;
   }
 
   if (filter.month !== ALL_DATES && utcMonthName(epochMs) !== filter.month) return false;

@@ -86,6 +86,14 @@ class Builds extends AbstractController
             {
                 return $this->redirectPermanently('/builds/' . $lower . '/' . $refLower . '/');
             }
+            // Any tag-shaped string used to render an empty HTTP-200 page.
+            // Only real version lines (per the classifier's catalog) exist;
+            // when the catalog is unavailable, fail open rather than 404 all.
+            $knownTags = \WindowsBuilds\Service\ReleaseClassifier::lineTags($lower);
+            if ($knownTags && !in_array(strtoupper($refLower), array_map('strtoupper', $knownTags), true))
+            {
+                throw $this->exception($this->notFound());
+            }
             return $this->renderBuildsPage($lower, false, strtoupper($refLower));
         }
 
@@ -97,7 +105,12 @@ class Builds extends AbstractController
      */
     protected function redirectKbAlias(string $kbNumber)
     {
-        $hit = $this->fetchDetailApi('/resolve/kb/' . ltrim($kbNumber, '0'));
+        $trimmed = ltrim($kbNumber, '0');
+        if (!preg_match('/^\d{6,7}$/', $trimmed))
+        {
+            throw $this->exception($this->notFound());
+        }
+        $hit = $this->fetchDetailApi('/resolve/kb/' . $trimmed);
         if (!$hit || empty($hit['family']) || empty($hit['build']))
         {
             throw $this->exception($this->notFound());
@@ -178,7 +191,8 @@ class Builds extends AbstractController
         $tag = $bundle['tag'] ?? null;
         $channel = self::channelLabel($bundle['build_type'] ?? '');
         $line = $tag ? ($familyLabel . ' ' . $tag) : $familyLabel;
-        $released = !empty($bundle['release_date']) ? gmdate('F j, Y', strtotime($bundle['release_date'] . 'T12:00:00Z'))
+        $releaseTs = !empty($bundle['release_date']) ? strtotime($bundle['release_date'] . 'T12:00:00Z') : false;
+        $released = $releaseTs !== false ? gmdate('F j, Y', $releaseTs)
             : (!empty($bundle['created']) ? gmdate('F j, Y', (int) $bundle['created']) : null);
 
         $archList = [];

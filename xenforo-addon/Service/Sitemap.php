@@ -63,6 +63,16 @@ class Sitemap extends AbstractService
             'windows10'     => ['label' => 'Windows 10',     'lines' => ['22h2', '21h2', '21h1']],
             'windowsserver' => ['label' => 'Windows Server', 'lines' => ['2025', '2022', '2019']],
         ];
+        // Derive lines from the classifier catalog so new lines appear and
+        // retired ones stop being submitted; fall back to the static list
+        // only when the catalog is unavailable.
+        foreach ($families as $path => &$family) {
+            $tags = ReleaseClassifier::lineTags($path);
+            if ($tags) {
+                $family['lines'] = array_map('strtolower', $tags);
+            }
+        }
+        unset($family);
         $entries = [];
         foreach ($families as $path => $family) {
             foreach ($family['lines'] as $line) {

@@ -132,17 +132,24 @@ class Setup extends AbstractSetup
         }
 
         $current = (string) file_get_contents($htaccessPath);
-        if (strpos($current, self::HTACCESS_BEGIN) !== false) {
-            return; // already installed
+        $existingBegin = strpos($current, self::HTACCESS_BEGIN);
+        $existingEnd = $existingBegin === false ? false : strpos($current, self::HTACCESS_END, $existingBegin);
+        if ($existingBegin !== false && $existingEnd === false) {
+            // Truncated block (BEGIN without END): excise it so the current
+            // block is installed whole below instead of being left forever.
+            $end = strpos($current, "\n\n", $existingBegin);
+            $end = ($end === false) ? strlen($current) : $end;
+            $current = substr_replace($current, '', $existingBegin, $end - $existingBegin);
+            $existingBegin = false;
         }
 
         // Legacy installs used an unmarked block; excise it before re-adding.
-        $legacyPos = strpos($current, self::HTACCESS_LEGACY_MARKER);
+        $legacyPos = $existingBegin === false ? strpos($current, self::HTACCESS_LEGACY_MARKER) : false;
         if ($legacyPos !== false) {
             $end = strpos($current, "\n\n", $legacyPos);
             $end = ($end === false) ? strlen($current) : $end;
             $current = substr_replace($current, '', $legacyPos, $end - $legacyPos);
-        } else {
+        } elseif ($existingBegin === false) {
             $current = rtrim($current) . "\n";
         }
 
@@ -163,11 +170,26 @@ class Setup extends AbstractSetup
             . "RewriteRule ^builds/office(/.*)?\$ /builds/office365/ [R=301,L]\n"
             . self::HTACCESS_END . "\n";
 
-        // Insert ahead of the main XenForo rules when they can be found.
-        $xfPos = strpos($current, '# XenForo');
-        $updated = ($xfPos !== false)
-            ? substr_replace($current, $block . "\n", $xfPos, 0)
-            : $current . "\n" . $block;
+        if ($existingBegin !== false) {
+            // Upgrade path: replace the installed block body in place when it
+            // differs from the current one instead of returning early forever.
+            $begin = strpos($current, self::HTACCESS_BEGIN);
+            $endMarker = strpos($current, self::HTACCESS_END, $begin);
+            $end = $endMarker + strlen(self::HTACCESS_END);
+            if (substr($current, $end, 1) === "\n") {
+                $end++;
+            }
+            if (substr($current, $begin, $end - $begin) === $block) {
+                return; // already current
+            }
+            $updated = substr_replace($current, $block, $begin, $end - $begin);
+        } else {
+            // Insert ahead of the main XenForo rules when they can be found.
+            $xfPos = strpos($current, '# XenForo');
+            $updated = ($xfPos !== false)
+                ? substr_replace($current, $block . "\n", $xfPos, 0)
+                : $current . "\n" . $block;
+        }
 
         $tmp = $htaccessPath . '.wb-tmp-' . getmypid();
         // Snapshot the ORIGINAL file before swapping it in - backing up after

@@ -82,6 +82,14 @@ describe('serializeUrlFilters', () => {
     expect(qs).not.toContain('year');
   });
 
+  it('round-trips a calendar month together with its year', () => {
+    const state: UrlFilters = { ...URL_FILTER_DEFAULTS, month: 'March', year: '2025' };
+    const qs = serializeUrlFilters(state);
+    expect(qs).toContain('month=March');
+    expect(qs).toContain('year=2025');
+    expect(parseUrlFilters(qs)).toEqual(state);
+  });
+
   it('maps the download filter to its short param', () => {
     expect(serializeUrlFilters({ ...URL_FILTER_DEFAULTS, downloadFilter: 'Download Available' })).toBe('?dl=avail');
   });

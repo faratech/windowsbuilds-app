@@ -46,12 +46,16 @@ import { buildsQueryDefaults, isWindowsTab, useBuilds } from './hooks/useBuilds'
 
 const getSortBy = (sortBy: SortBy, activeTab: TabType): SortBy => {
   if (activeTab === 'edge') {
+    if (sortBy === 'build-desc') return 'version-desc';
+    if (sortBy === 'build-asc') return 'version-asc';
     return sortBy === 'date-desc' || sortBy === 'date-asc' || sortBy === 'version-desc' || sortBy === 'version-asc'
       ? sortBy
       : 'version-desc';
   }
 
-  return sortBy === 'version-desc' || sortBy === 'version-asc' ? 'build-desc' : sortBy;
+  if (sortBy === 'version-desc') return 'build-desc';
+  if (sortBy === 'version-asc') return 'build-asc';
+  return sortBy;
 };
 
 /** Exported so tests can reset the cache between renders. */
@@ -359,6 +363,10 @@ function AppContent() {
     () => Array.from(new Set(builds.filter(isOfficeBuild).map((b) => b.channel).filter(Boolean))).sort(),
     [builds],
   );
+  // A ?channel= value naming no real channel must not silently filter to
+  // zero while the select (which has no such option) reads "All channels".
+  const effectiveOfficeChannel =
+    filters.officeChannel && officeChannels.includes(filters.officeChannel) ? filters.officeChannel : undefined;
 
   // Render in pages of 30: 80+ cards at once is ~3,800 DOM nodes and most of
   // the main-thread cost on mobile; the rest arrive on "Show more". The cap
@@ -391,8 +399,8 @@ function AppContent() {
         return false;
       }
 
-      if (isOfficeBuild(build) && filters.officeChannel && filters.officeChannel !== 'All'
-        && build.channel !== filters.officeChannel) {
+      if (isOfficeBuild(build) && effectiveOfficeChannel && effectiveOfficeChannel !== 'All'
+        && build.channel !== effectiveOfficeChannel) {
         return false;
       }
 
@@ -422,7 +430,7 @@ function AppContent() {
         default: return 0;
       }
     });
-  }, [builds, query.dataUpdatedAt, searchQuery, filters.buildType, filters.officeChannel, platformFilter, downloadFilter, dateFilter, activeSortBy]);
+  }, [builds, query.dataUpdatedAt, searchQuery, filters.buildType, effectiveOfficeChannel, platformFilter, downloadFilter, dateFilter, activeSortBy]);
 
   // Timeline rows merge records that are one release (same KB across 24H2/25H2,
   // one Edge version on five platforms). Kinds are resolved in same-day context,
@@ -690,7 +698,7 @@ function AppContent() {
                     ) : isOfficeTab ? (
                       <select
                         aria-label="Filter by Office channel"
-                        value={filters.officeChannel || 'All'}
+                        value={effectiveOfficeChannel || 'All'}
                         onChange={(e) => setFilters({ ...filters, officeChannel: e.target.value === 'All' ? undefined : e.target.value })}
                         className={SELECT_CLASS}
                       >

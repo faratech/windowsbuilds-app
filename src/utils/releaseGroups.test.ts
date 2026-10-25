@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EdgeBuild, OfficeBuild, WindowsBuild } from '../types';
-import { filterDays, groupReleases, intrinsicKind, isPatchTuesday, kbOf, recordKinds } from './releaseGroups';
+import { filterDays, groupReleases, intrinsicKind, isPatchTuesday, isUpdateKind, kbOf, recordKinds } from './releaseGroups';
 
 const win = (uuid: string, title: string, build: string, created: string, extra: Partial<WindowsBuild> = {}): WindowsBuild => ({
   uuid, title, build, build_number: build, arch: 'amd64', build_type: 'release', created, ...extra,
@@ -43,6 +43,14 @@ describe('intrinsicKind', () => {
   it('extracts KB numbers', () => {
     expect(kbOf('x - kb5128942 (1)')).toBe('KB5128942');
     expect(kbOf('Windows 11, version 25H2')).toBeNull();
+  });
+});
+
+describe('isUpdateKind', () => {
+  it('rejects inherited Object.prototype keys', () => {
+    expect(isUpdateKind('constructor')).toBe(false);
+    expect(isUpdateKind('toString')).toBe(false);
+    expect(isUpdateKind('security')).toBe(true);
   });
 });
 
