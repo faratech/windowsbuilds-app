@@ -22,7 +22,7 @@
     "build:full": "npm run build && npm run deploy && npm run deploy:addon && npm run update:controller"
   },
   "dependencies": {
-    "@fluentui/react-icons": "^2.0.344",
+    "@fluentui/react-icons": "^2.0.345",
     "@tanstack/react-query": "^5.105.0",
     "clsx": "^2.1.1",
     "framer-motion": "^14.9.0",
