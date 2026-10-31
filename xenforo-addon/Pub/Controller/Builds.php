@@ -124,7 +124,11 @@ class Builds extends AbstractController
      */
     protected function fetchDetailApi(string $path): ?array
     {
-        $cache = \XF::app()->cache();
+        // A /build/ bundle carries guest-filtered forum thread titles and URLs. This cache's
+        // key has no visibility component and lived 3600 s, so after a security purge the
+        // re-render read a hidden or deleted thread's title back (round-4 bug bash,
+        // 2026-10-31). FastAPI caches the bundle itself and re-checks the links on every hit.
+        $cache = strpos($path, '/build/') === 0 ? null : \XF::app()->cache();
         $cacheKey = 'wf_build_api_' . md5($path . ':' . \WindowsBuilds\Service\ReleaseClassifier::generation());
         if ($cache)
         {
