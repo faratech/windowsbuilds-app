@@ -89,7 +89,7 @@ class Builds extends AbstractController
             // Any tag-shaped string used to render an empty HTTP-200 page.
             // Only real version lines (per the classifier's catalog) exist;
             // when the catalog is unavailable, fail open rather than 404 all.
-            $knownTags = \WindowsBuilds\Service\ReleaseClassifier::lineTags($lower);
+            $knownTags = \WindowsBuilds\Service\ReleaseClassifier::routableLineTags($lower);
             if ($knownTags && !in_array(strtoupper($refLower), array_map('strtoupper', $knownTags), true))
             {
                 throw $this->exception($this->notFound());

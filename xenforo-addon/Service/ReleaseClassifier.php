@@ -60,17 +60,36 @@ class ReleaseClassifier
         if ($flights) {
             return $flights[count($flights) - 1]['tag'];
         }
-        $fallback = [
-            'windows11' => ['26300' => '26H2', '28000' => '26H1', '26200' => '25H2', '26100' => '24H2', '22631' => '23H2', '22621' => '22H2', '22000' => '21H2'],
-            'windows10' => ['19045' => '22H2', '19044' => '21H2', '19043' => '21H1', '19042' => '20H2', '19041' => '2004'],
-            'windowsserver' => ['26100' => '2025', '20348' => '2022', '17763' => '2019', '14393' => '2016'],
-        ];
-        $bases = $catalog['sources'][$family]['bases'] ?? ($fallback[$family] ?? []);
+        $bases = self::baseTags($family);
         $mapped = $bases[self::baseOf($build)] ?? null;
         if ($mapped !== null || $family === 'windowsserver') {
             return $mapped;
         }
         return preg_match('/\b(\d{2}H[12])\b/i', $title, $m) ? strtoupper($m[1]) : null;
+    }
+
+    private const FALLBACK_BASES = [
+        'windows11' => ['26300' => '26H2', '28000' => '26H1', '26200' => '25H2', '26100' => '24H2', '22631' => '23H2', '22621' => '22H2', '22000' => '21H2'],
+        'windows10' => ['19045' => '22H2', '19044' => '21H2', '19043' => '21H1', '19042' => '20H2', '19041' => '2004'],
+        'windowsserver' => ['26100' => '2025', '20348' => '2022', '17763' => '2019', '14393' => '2016'],
+    ];
+
+    /** Base build => version tag, from the catalog, else the built-in map. */
+    public static function baseTags(string $family): array
+    {
+        return self::catalog()['sources'][$family]['bases'] ?? (self::FALLBACK_BASES[$family] ?? []);
+    }
+
+    /**
+     * Every line a page may exist for: the listed lines plus every tag versionTag() can
+     * resolve a build to (#25). Build pages link /builds/windows10/20h2/ and /2004/ from
+     * their base map, so the line gate must accept them even though the line strip and
+     * the sitemap (lineTags) do not list them.
+     */
+    public static function routableLineTags(string $family): array
+    {
+        $tags = array_merge(self::lineTags($family), array_map('strval', array_values(self::baseTags($family))));
+        return array_values(array_unique($tags));
     }
 
     public static function lineTags(string $family): array
