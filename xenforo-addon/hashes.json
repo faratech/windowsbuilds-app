@@ -2,7 +2,7 @@
     "src/addons/WindowsBuilds/addon.json": "3114ee620d7e0e92d072d7910f16e3eed826bb5b494a6cf1ed51adf4ad2e5a91",
     "src/addons/WindowsBuilds/CLAUDE.md": "04ac713b3b97fe1355c96927570669a7dde484c809cbf378e0cf8ae2ab050eb8",
     "src/addons/WindowsBuilds/Cron/GenerateSitemap.php": "37578f65bf4cf63bb3d732c217a95da209b4fe6c5826570fbe1b2ad9a7d4c783",
-    "src/addons/WindowsBuilds/Pub/Controller/Builds.php": "a5b9732862f27ef86cabb7f0fe8f698c0c530aee75882e1b3ed82b5b884182fe",
+    "src/addons/WindowsBuilds/Pub/Controller/Builds.php": "e513605e07a948da9a964985656004bf23e77fc329fe0ad6e32d551048804da1",
     "src/addons/WindowsBuilds/Service/EdgeUpdates.php": "fffcc639f33bd80ae393bbc592af911298b548f7c8029c6e6651e11f54cfb2c2",
     "src/addons/WindowsBuilds/Service/ExtractCab.php": "c9de60da3388c7acb32c06efd3fd21c605ef6555310c497bc08afe68f52fd9c8",
     "src/addons/WindowsBuilds/Service/Office365.php": "c30b6507221f2d296ffa9be744434534da5fee89e1f4f1fd9b9573aee0cec9bb",
