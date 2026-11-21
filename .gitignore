@@ -46,3 +46,4 @@ CLAUDE.md
 build-and-update.sh
 start.sh
 update-controller.sh
+.claude/settings.local.json
